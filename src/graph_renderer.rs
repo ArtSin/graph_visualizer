@@ -322,6 +322,21 @@ where
                         y_i - vertex_radius * FRAC_1_SQRT_2,
                         vertex_radius * 2.0 / 3.0,
                     );
+                } else if g.get_is_directed() && g.get_edge(to, i).is_ok() {
+                    // Вектор от начальной к конечной вершине
+                    let dir = (x_to - x_i, y_to - y_i);
+                    let len = (dir.0 * dir.0 + dir.1 * dir.1).sqrt();
+                    // Перпендикуляр к вектору
+                    let dir_normal = (-dir.1, dir.0);
+                    // Точка в центре ребра с отступом
+                    let (edge_center_x, edge_center_y) = (
+                        x_i + dir.0 / 2.0 + dir_normal.0 / (20.0 * len),
+                        y_i + dir.1 / 2.0 + dir_normal.1 / (20.0 * len),
+                    );
+
+                    // Кривая Безье ребра
+                    path.move_to(x_i, y_i);
+                    path.quad_to(edge_center_x, edge_center_y, x_to, y_to);
                 } else {
                     // Линия ребра
                     path.move_to(x_i, y_i);
@@ -331,6 +346,12 @@ where
 
                 // Стрелка дуги
                 if g.get_is_directed() {
+                    // Координаты крайних точек стрелки дуги
+                    let coord_1: (f32, f32);
+                    let coord_2: (f32, f32);
+                    // Точка пересечения окружности вершины и дуги
+                    let vertex_edge: (f32, f32);
+
                     if i == to {
                         // Центр окружности ребра-петли
                         let (x_loop, y_loop) = (
@@ -338,7 +359,7 @@ where
                             y_i - vertex_radius * FRAC_1_SQRT_2,
                         );
                         // Точка пересечения окружности вершины и ребра-петли
-                        let (x_inter, y_inter) = (
+                        vertex_edge = (
                             (-7.0 * SQRT_2 + 8.0) * vertex_radius / 18.0 + x_i,
                             (-7.0 * SQRT_2 - 8.0) * vertex_radius / 18.0 + y_i,
                         );
@@ -354,14 +375,10 @@ where
                             dir.0 * FRAC_1_SQRT_2 + dir.1 * FRAC_1_SQRT_2,
                         );
                         // Вектор с длиной в 1/2 радиуса вершины
-                        let coord_1 = (
-                            x_inter + dir_1.0 * vertex_radius * 0.5 / len,
-                            y_inter + dir_1.1 * vertex_radius * 0.5 / len,
+                        coord_1 = (
+                            vertex_edge.0 + dir_1.0 * vertex_radius * 0.5 / len,
+                            vertex_edge.1 + dir_1.1 * vertex_radius * 0.5 / len,
                         );
-                        // Часть стрелки дуги
-                        let mut path = Path::new();
-                        path.move_to(coord_1.0, coord_1.1);
-                        path.line_to(x_inter, y_inter);
 
                         // Поворот вектора на 45 градусов по часовой стрелке
                         let dir_2 = (
@@ -369,19 +386,102 @@ where
                             -dir.0 * FRAC_1_SQRT_2 + dir.1 * FRAC_1_SQRT_2,
                         );
                         // Вектор с длиной в 1/2 радиуса вершины
-                        let coord_2 = (
-                            x_inter + dir_2.0 * vertex_radius * 0.5 / len,
-                            y_inter + dir_2.1 * vertex_radius * 0.5 / len,
+                        coord_2 = (
+                            vertex_edge.0 + dir_2.0 * vertex_radius * 0.5 / len,
+                            vertex_edge.1 + dir_2.1 * vertex_radius * 0.5 / len,
                         );
-                        // Часть стрелки дуги
-                        path.line_to(coord_2.0, coord_2.1);
-                        canvas.stroke_path(&mut path, paint);
+                    } else if g.get_is_directed() && g.get_edge(to, i).is_ok() {
+                        // Вектор от начальной к конечной вершине
+                        let dir = (x_to - x_i, y_to - y_i);
+                        let len = (dir.0 * dir.0 + dir.1 * dir.1).sqrt();
+                        // Перпендикуляр к вектору
+                        let dir_normal = (-dir.1, dir.0);
+                        // Точка в центре ребра с отступом
+                        let (edge_center_x, edge_center_y) = (
+                            x_i + dir.0 / 2.0 + dir_normal.0 / (20.0 * len),
+                            y_i + dir.1 / 2.0 + dir_normal.1 / (20.0 * len),
+                        );
+                        // Вектор от конечной вершины к центральной точке
+                        let center_dir = (edge_center_x - x_to, edge_center_y - y_to);
+                        // Длина вектора
+                        let center_len_sqr =
+                            center_dir.0 * center_dir.0 + center_dir.1 * center_dir.1;
+                        let center_len = center_len_sqr.sqrt();
+
+                        // Функция отклонения точки кривой Безье от пересечения с окружностью конечной вершины
+                        let f_bezier = |t: f32| {
+                            let x = (1.0 - t).powi(2) * x_to
+                                + 2.0 * t * (1.0 - t) * edge_center_x
+                                + t.powi(2) * x_i
+                                - x_to;
+                            let y = (1.0 - t).powi(2) * y_to
+                                + 2.0 * t * (1.0 - t) * edge_center_y
+                                + t.powi(2) * y_i
+                                - y_to;
+                            x.powi(2) + y.powi(2) - vertex_radius.powi(2)
+                        };
+                        // Производная этой функции
+                        let df_bezier = |t: f32| {
+                            let x = 2.0
+                                * (2.0 * t * (x_i - edge_center_x)
+                                    + 2.0 * (1.0 - t) * (edge_center_x - x_to))
+                                * (x_i * t.powi(2)
+                                    + 2.0 * edge_center_x * t * (1.0 - t)
+                                    + x_to * (1.0 - t).powi(2)
+                                    - x_to);
+                            let y = 2.0
+                                * (2.0 * t * (y_i - edge_center_y)
+                                    + 2.0 * (1.0 - t) * (edge_center_y - y_to))
+                                * (y_i * t.powi(2)
+                                    + 2.0 * edge_center_y * t * (1.0 - t)
+                                    + y_to * (1.0 - t).powi(2)
+                                    - y_to);
+                            x + y
+                        };
+
+                        // Вычисление параметра кривой Безье алгоритмом Ньютона
+                        let mut t = 0.5;
+                        for _ in 0..5 {
+                            t -= f_bezier(t) / df_bezier(t);
+                        }
+
+                        // Точка пересечения окружности конечной вершины и кривой Безье
+                        vertex_edge = (
+                            (1.0 - t).powi(2) * x_to
+                                + 2.0 * t * (1.0 - t) * edge_center_x
+                                + t.powi(2) * x_i,
+                            (1.0 - t).powi(2) * y_to
+                                + 2.0 * t * (1.0 - t) * edge_center_y
+                                + t.powi(2) * y_i,
+                        );
+
+                        // Поворот вектора на 45 градусов против часовой стрелки
+                        let dir_1 = (
+                            center_dir.0 * FRAC_1_SQRT_2 - center_dir.1 * FRAC_1_SQRT_2,
+                            center_dir.0 * FRAC_1_SQRT_2 + center_dir.1 * FRAC_1_SQRT_2,
+                        );
+                        // Вектор с длиной в 1/2 радиуса вершины
+                        coord_1 = (
+                            vertex_edge.0 + dir_1.0 * vertex_radius * 0.5 / center_len,
+                            vertex_edge.1 + dir_1.1 * vertex_radius * 0.5 / center_len,
+                        );
+
+                        // Поворот вектора на 45 градусов по часовой стрелке
+                        let dir_2 = (
+                            center_dir.0 * FRAC_1_SQRT_2 + center_dir.1 * FRAC_1_SQRT_2,
+                            -center_dir.0 * FRAC_1_SQRT_2 + center_dir.1 * FRAC_1_SQRT_2,
+                        );
+                        // Вектор с длиной в 1/2 радиуса вершины
+                        coord_2 = (
+                            vertex_edge.0 + dir_2.0 * vertex_radius * 0.5 / center_len,
+                            vertex_edge.1 + dir_2.1 * vertex_radius * 0.5 / center_len,
+                        );
                     } else {
                         // Вектор от конечной к начальной вершине
                         let rev_dir = (x_i - x_to, y_i - y_to);
                         let len = (rev_dir.0 * rev_dir.0 + rev_dir.1 * rev_dir.1).sqrt();
                         // Точка пересечения контура конечной вершины и дуги
-                        let (vertex_edge_x, vertex_edge_y) = (
+                        vertex_edge = (
                             x_to + rev_dir.0 * vertex_radius / len,
                             y_to + rev_dir.1 * vertex_radius / len,
                         );
@@ -392,14 +492,10 @@ where
                             rev_dir.0 * FRAC_1_SQRT_2 + rev_dir.1 * FRAC_1_SQRT_2,
                         );
                         // Вектор с длиной в 1/2 радиуса вершины
-                        let coord_1 = (
-                            vertex_edge_x + dir_1.0 * vertex_radius * 0.5 / len,
-                            vertex_edge_y + dir_1.1 * vertex_radius * 0.5 / len,
+                        coord_1 = (
+                            vertex_edge.0 + dir_1.0 * vertex_radius * 0.5 / len,
+                            vertex_edge.1 + dir_1.1 * vertex_radius * 0.5 / len,
                         );
-                        // Часть стрелки дуги
-                        let mut path = Path::new();
-                        path.move_to(coord_1.0, coord_1.1);
-                        path.line_to(vertex_edge_x, vertex_edge_y);
 
                         // Поворот вектора на 45 градусов по часовой стрелке
                         let dir_2 = (
@@ -407,14 +503,18 @@ where
                             -rev_dir.0 * FRAC_1_SQRT_2 + rev_dir.1 * FRAC_1_SQRT_2,
                         );
                         // Вектор с длиной в 1/2 радиуса вершины
-                        let coord_2 = (
-                            vertex_edge_x + dir_2.0 * vertex_radius * 0.5 / len,
-                            vertex_edge_y + dir_2.1 * vertex_radius * 0.5 / len,
+                        coord_2 = (
+                            vertex_edge.0 + dir_2.0 * vertex_radius * 0.5 / len,
+                            vertex_edge.1 + dir_2.1 * vertex_radius * 0.5 / len,
                         );
-                        // Часть стрелки дуги
-                        path.line_to(coord_2.0, coord_2.1);
-                        canvas.stroke_path(&mut path, paint);
                     }
+
+                    // Отрисовка стрелки дуги
+                    let mut path = Path::new();
+                    path.move_to(coord_1.0, coord_1.1);
+                    path.line_to(vertex_edge.0, vertex_edge.1);
+                    path.line_to(coord_2.0, coord_2.1);
+                    canvas.stroke_path(&mut path, paint);
                 }
 
                 if let Some(w) = weight {
@@ -450,15 +550,27 @@ where
                     canvas.scale(1.0 / scale_coeff, 1.0 / scale_coeff);
                     paint.set_line_width(3.0 * scale_coeff / min_sz);
 
-                    // Обводка текста
+                    // Координаты текста
                     let (x_text, y_text) = if i == to {
                         (
                             x_i - vertex_radius * FRAC_1_SQRT_2 * 7.0 / 4.0,
                             y_i - vertex_radius * FRAC_1_SQRT_2 * 7.0 / 4.0,
                         )
+                    } else if g.get_is_directed() && g.get_edge(to, i).is_ok() {
+                        // Вектор от начальной к конечной вершине
+                        let dir = (x_to - x_i, y_to - y_i);
+                        let len = (dir.0 * dir.0 + dir.1 * dir.1).sqrt();
+                        // Перпендикуляр к вектору
+                        let dir_normal = (-dir.1, dir.0);
+                        // Точка в центре ребра с отступом
+                        (
+                            x_i + dir.0 / 2.0 + dir_normal.0 / (40.0 * len),
+                            y_i + dir.1 / 2.0 + dir_normal.1 / (40.0 * len),
+                        )
                     } else {
                         ((x_i + x_to) / 2.0, (y_i + y_to) / 2.0)
                     };
+                    // Обводка текста
                     paint.set_color(self.back_color);
                     canvas
                         .stroke_text(x_text * scale_coeff, y_text * scale_coeff, &text, paint)
