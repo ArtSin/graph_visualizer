@@ -93,7 +93,7 @@ fn handle_events(
 
     match event {
         // Завершение работы
-        Event::LoopDestroyed => return,
+        Event::LoopDestroyed => {}
         Event::WindowEvent { ref event, .. } => match event {
             // Изменение размера окна
             WindowEvent::Resized(physical_size) => {

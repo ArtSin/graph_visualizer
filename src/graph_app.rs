@@ -243,10 +243,8 @@ impl AppUpdate for AppModel {
                 std::mem::swap(&mut curr_state, &mut self.graph_algorithm_state);
                 match algorithm_step(curr_state, &self.graph, &self.source_text, &self.sink_text) {
                     Ok(new_state) => {
-                        self.graph_algorithm_started = match new_state {
-                            AlgorithmState::NotStarted => false,
-                            _ => true,
-                        };
+                        self.graph_algorithm_started =
+                            !matches!(new_state, AlgorithmState::NotStarted);
                         self.graph_algorithm_state = new_state;
                         self.graph_window_proxy
                             .send_event(GraphWindowMsg::GraphAlgorithmStateChanged(
@@ -270,10 +268,8 @@ impl AppUpdate for AppModel {
                     ) {
                         Ok(new_state) => match new_state {
                             AlgorithmState::Finished(_) | AlgorithmState::NotStarted => {
-                                self.graph_algorithm_started = match new_state {
-                                    AlgorithmState::NotStarted => false,
-                                    _ => true,
-                                };
+                                self.graph_algorithm_started =
+                                    !matches!(new_state, AlgorithmState::NotStarted);
                                 self.graph_algorithm_state = new_state;
                                 self.graph_window_proxy
                                     .send_event(GraphWindowMsg::GraphAlgorithmStateChanged(

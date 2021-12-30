@@ -23,6 +23,15 @@ where
     dragging_vertex: Option<I>,        // текущая перемещаемая вершина
 }
 
+impl<I> Default for GraphRenderer<I>
+where
+    I: VertexKey,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<I> GraphRenderer<I>
 where
     I: VertexKey,
@@ -80,7 +89,7 @@ where
         const FORCE_CONST: f32 = 0.1;
         const TIME_CONST: f32 = 0.01;
 
-        if let None = g {
+        if g.is_none() {
             self.vertices.clear();
             return;
         }
@@ -98,7 +107,7 @@ where
 
         // Инициализация координат новых вершин случайными числами из отрезка [-0.5; 0.5]
         let coord_distribution = Uniform::new(-0.5f32, 0.5);
-        for (i, _) in g_vertices {
+        for i in g_vertices.keys() {
             if self.vertices.contains_key(i) {
                 continue;
             }
@@ -141,7 +150,7 @@ where
         }
 
         // Притяжение/отталкивание вершин, связанных рёбрами
-        for (i, _) in g.get_vertices() {
+        for i in g.get_vertices().keys() {
             let pos_i = self.vertices[i];
             for Edge { to, .. } in g.get_edge_list(i).unwrap() {
                 let pos_to = self.vertices[to];
@@ -201,7 +210,7 @@ where
         canvas.set_size(width as u32, height as u32, dpi_factor);
         canvas.clear_rect(0, 0, width as u32, height as u32, self.back_color);
 
-        if let None = g {
+        if g.is_none() {
             return Ok(());
         }
         if self.vertices.is_empty() {
@@ -284,18 +293,10 @@ where
         paint.set_text_baseline(Baseline::Middle);
 
         // Отрисовка рёбер
-        for (i, _) in g.get_vertices() {
-            let (x_i, y_i) = self
-                .vertices
-                .get(i)
-                .ok_or(GraphError::VertexNotFound)?
-                .clone();
+        for i in g.get_vertices().keys() {
+            let (x_i, y_i) = *self.vertices.get(i).ok_or(GraphError::VertexNotFound)?;
             for Edge { to, weight } in g.get_edge_list(i).unwrap() {
-                let (x_to, y_to) = self
-                    .vertices
-                    .get(to)
-                    .ok_or(GraphError::VertexNotFound)?
-                    .clone();
+                let (x_to, y_to) = *self.vertices.get(to).ok_or(GraphError::VertexNotFound)?;
 
                 // Поток в последнем дополняющем пути через текущее ребро
                 let mut edge_flow = None;

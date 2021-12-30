@@ -253,7 +253,7 @@ where
     pub fn to_file<Writer: Write>(&self, writer: &mut Writer) -> Result<(), Box<dyn Error>> {
         writeln!(writer, "{} {}", self.is_directed, self.is_weighted)?;
         writeln!(writer, "vertices")?;
-        for (_, v) in &self.vertices {
+        for v in self.vertices.values() {
             match &v.label {
                 Some(l) => writeln!(writer, "{} {}", v.id, l)?,
                 None => writeln!(writer, "{}", v.id)?,
@@ -289,7 +289,7 @@ where
 
     // Получение вершины
     pub fn get_vertex(&self, i: &I) -> Result<&Vertex<I>, GraphError> {
-        self.vertices.get(&i).ok_or(GraphError::VertexNotFound)
+        self.vertices.get(i).ok_or(GraphError::VertexNotFound)
     }
 
     // Добавление вершины
@@ -309,8 +309,8 @@ where
             return Err(GraphError::VertexNotFound);
         }
         let rev_e = Edge::new(i.clone(), None);
-        for (to, _) in &self.vertices {
-            if let Some(x) = self.edges.get_mut(&to) {
+        for to in self.vertices.keys() {
+            if let Some(x) = self.edges.get_mut(to) {
                 x.remove(&rev_e);
             }
         }

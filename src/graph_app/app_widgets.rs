@@ -208,10 +208,7 @@ impl Widgets<AppModel, ()> for AppWidgets {
                     },
 
                     append = &gtk::Button {
-                        set_sensitive: watch!(match model.graph_algorithm_state {
-                            AlgorithmState::Finished(_) => false,
-                            _ => true,
-                        }),
+                        set_sensitive: watch!(!matches!(model.graph_algorithm_state, AlgorithmState::Finished(_))),
                         set_label: "Запуск алгоритма до конца",
                         connect_clicked(sender) => move |_| {
                             send!(sender, AppMsg::AlgorithmFullRun);
@@ -249,7 +246,7 @@ impl Widgets<AppModel, ()> for AppWidgets {
     fn manual_view() {
         // Обновление текста графа
         let buf = self.text_view.buffer();
-        if buf.text(&buf.start_iter(), &buf.end_iter(), true).as_str() != &model.graph_text {
+        if buf.text(&buf.start_iter(), &buf.end_iter(), true).as_str() != model.graph_text {
             buf.set_text(&model.graph_text);
         }
     }

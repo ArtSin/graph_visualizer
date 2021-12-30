@@ -95,7 +95,7 @@ where
     match state {
         AlgorithmState::NotStarted => {
             // Графа нет
-            if let None = g {
+            if g.is_none() {
                 return Err(Box::new(GraphInterfaceError::GraphNotExist));
             }
             let g = g.as_ref().unwrap();
@@ -130,7 +130,7 @@ where
 
             // Граф потоков
             let mut gf = Graph::new(true, true);
-            for (_, v) in g.get_vertices() {
+            for v in g.get_vertices().values() {
                 gf.add_vertex(v.clone()).unwrap();
             }
             for &(i, to) in &edges {
@@ -207,14 +207,14 @@ where
         return flow;
     }
     // Потока нет или текущая вершина уже посещена
-    if flow == W::ZERO || used.contains(&i) {
+    if flow == W::ZERO || used.contains(i) {
         return W::ZERO;
     }
     // Текущая вершина посещена
     used.insert(i.clone());
 
     // Все дуги, исходящие из вершины
-    for Edge { to, weight: c } in gc.get_edge_list(&i).unwrap() {
+    for Edge { to, weight: c } in gc.get_edge_list(i).unwrap() {
         // Пропускная способность, поток, остаточная пропускная способность
         let c = c.as_ref().unwrap();
         let f = gf.get_edge(i, to).unwrap().weight.as_ref().unwrap().clone();
@@ -241,5 +241,5 @@ where
             return next_f;
         }
     }
-    return W::ZERO;
+    W::ZERO
 }

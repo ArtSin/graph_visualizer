@@ -88,7 +88,7 @@ where
         }
         // Добавление вершины в граф
         "+v" => {
-            if args.len() < 1 || args.len() > 2 {
+            if args.is_empty() || args.len() > 2 {
                 return Err(Box::new(GraphInterfaceError::IncorrectArgumentCount));
             }
             let i: I = args[0]
