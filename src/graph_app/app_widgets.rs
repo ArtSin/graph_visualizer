@@ -1,7 +1,7 @@
 use gtk::{
     prelude::{
         BoxExt, ButtonExt, Cast, CheckButtonExt, EditableExt, EntryBufferExtManual, EntryExt,
-        GtkWindowExt, OrientableExt, StyleContextExt, TextBufferExt, TextViewExt, WidgetExt,
+        GtkWindowExt, OrientableExt, StyleContextExt, TextViewExt, WidgetExt,
     },
     Inhibit,
 };
@@ -63,8 +63,15 @@ impl Widgets<AppModel, ()> for AppWidgets {
                         set_vexpand: true,
 
                         set_child: text_view = Some(&gtk::TextView) {
-                            set_editable: false,
+                            set_editable: true,
                             set_wrap_mode: gtk::WrapMode::None,
+                        },
+                    },
+
+                    append = &gtk::Button::with_label("Обновить граф") {
+                        set_hexpand: true,
+                        connect_clicked(sender) => move |_| {
+                            send!(sender, AppMsg::UpdateGraph);
                         },
                     },
 
@@ -240,15 +247,7 @@ impl Widgets<AppModel, ()> for AppWidgets {
             .graph_window_proxy
             .send_event(GraphWindowMsg::SetColor(color))
             .unwrap();
-    }
-
-    // Обновление текста графа при каждой отрисовке приложения
-    fn post_view() {
-        // Обновление текста графа
-        let buf = self.text_view.buffer();
-        if buf.text(&buf.start_iter(), &buf.end_iter(), true).as_str() != model.graph_text {
-            buf.set_text(&model.graph_text);
-        }
+        model.graph_text.replace(Some(text_view.buffer()));
     }
 }
 

@@ -2,7 +2,7 @@ use std::{
     error::Error,
     fmt::{Display, Formatter},
     fs::File,
-    io::BufWriter,
+    io::{BufReader, BufWriter},
 };
 
 use crate::graph::{Edge, EdgeWeight, Graph, Vertex, VertexKey};
@@ -71,7 +71,7 @@ where
                 return Err(Box::new(GraphInterfaceError::IncorrectArgumentCount));
             }
             let file = File::open(args[0]).map_err(|_| GraphInterfaceError::FileError)?;
-            *g = Some(Graph::from_file(file)?);
+            *g = Some(Graph::from_file(BufReader::new(file))?);
         }
         // Сохранение графа в файл
         "sf" => {

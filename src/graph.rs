@@ -2,8 +2,7 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     error::Error,
     fmt::{Display, Formatter},
-    fs::File,
-    io::{BufRead, BufReader, Write},
+    io::{BufRead, Write},
     ops::{Add, Sub},
     str::FromStr,
 };
@@ -204,7 +203,7 @@ where
     }
 
     // Создание графа из файла
-    pub fn from_file(file: File) -> Result<Self, Box<dyn Error>> {
+    pub fn from_file<Reader: BufRead>(reader: Reader) -> Result<Self, Box<dyn Error>> {
         enum ReadingState {
             NotCreated,
             ParsingVerticesStart,
@@ -212,7 +211,6 @@ where
             ParsingEdges,
         }
 
-        let reader = BufReader::new(file);
         let mut state = ReadingState::NotCreated;
         let mut g = None;
         for line in reader.lines() {

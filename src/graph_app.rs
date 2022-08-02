@@ -1,6 +1,7 @@
-use std::path::PathBuf;
+use std::{cell::RefCell, io::BufReader, path::PathBuf};
 
 use glutin::event_loop::EventLoopProxy;
+use gtk::{traits::TextBufferExt, TextBuffer};
 use relm4::{AppUpdate, Components, Model, RelmComponent, Sender};
 use relm4_components::{
     open_dialog::{OpenDialogModel, OpenDialogMsg},
@@ -51,7 +52,7 @@ pub struct AppModel {
     sink_text: String,           // текст поля стока
 
     graph: Option<Graph<i32, i32>>,                  // граф
-    graph_text: String,                              // граф в текстовом виде
+    graph_text: RefCell<Option<TextBuffer>>,         // граф в текстовом виде
     graph_algorithm_state: AlgorithmState<i32, i32>, // состояние выполнения алгоритма
     graph_algorithm_started: bool,                   // запущен ли алгоритм
 
@@ -73,7 +74,7 @@ impl AppModel {
             sink_text: String::new(),
 
             graph: None,
-            graph_text: String::new(),
+            graph_text: RefCell::new(None),
             graph_algorithm_state: AlgorithmState::NotStarted,
             graph_algorithm_started: false,
 
@@ -97,6 +98,7 @@ pub enum AppMsg {
 
     OpenFile(PathBuf), // открытие файла с путём, выбранном в диалоге
     SaveFile(PathBuf), // сохранение файла с путём, выбранном в диалоге
+    UpdateGraph,       // обновление графа из текстового представления
     NewGraph,          // создание нового графа
     AddVertex,         // добавление вершины
     DeleteVertex,      // удаление вершины
@@ -157,6 +159,22 @@ impl AppUpdate for AppModel {
                     &mut self.graph,
                 ) {
                     sender.send(AppMsg::ShowError(e.to_string())).unwrap();
+                }
+            }
+            // Обновление графа из текстового представления
+            AppMsg::UpdateGraph => {
+                let buf_ref = self.graph_text.borrow();
+                let buf = buf_ref.as_ref().unwrap();
+                let text_gstr = buf.text(&buf.start_iter(), &buf.end_iter(), true);
+                let text_bytes = text_gstr.as_bytes();
+                match Graph::from_file(BufReader::new(text_bytes)) {
+                    Ok(g) => {
+                        self.graph = Some(g);
+                        sender.send(AppMsg::GraphChanged).unwrap();
+                    }
+                    Err(e) => {
+                        sender.send(AppMsg::ShowError(e.to_string())).unwrap();
+                    }
                 }
             }
             // Создание нового графа
@@ -282,9 +300,13 @@ impl AppUpdate for AppModel {
                     Some(g) => {
                         let mut buf = Vec::new();
                         g.to_file(&mut buf).unwrap();
-                        self.graph_text = String::from_utf8(buf).unwrap();
+                        self.graph_text
+                            .borrow()
+                            .as_ref()
+                            .unwrap()
+                            .set_text(std::str::from_utf8(&buf).unwrap());
                     }
-                    None => self.graph_text = String::new(),
+                    None => self.graph_text.borrow().as_ref().unwrap().set_text(""),
                 };
                 self.graph_window_proxy
                     .send_event(GraphWindowMsg::GraphChanged(self.graph.clone()))
