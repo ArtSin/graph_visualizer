@@ -28,6 +28,7 @@ mod open_dialog;
 mod save_dialog;
 
 // Компоненты приложения
+#[derive(Components)]
 pub struct AppComponents {
     // Диалог открытия файла
     open_dialog: RelmComponent<OpenDialogModel<OpenDialogConfig>, AppModel>,
@@ -35,21 +36,6 @@ pub struct AppComponents {
     save_dialog: RelmComponent<SaveDialogModel<SaveDialogConfig>, AppModel>,
     // Диалог сообщения об ошибке
     error_dialog: RelmComponent<ErrorDialogModel, AppModel>,
-}
-
-impl Components<AppModel> for AppComponents {
-    // Инициализация компонентов
-    fn init_components(
-        parent_model: &AppModel,
-        parent_widgets: &AppWidgets,
-        parent_sender: relm4::Sender<AppMsg>,
-    ) -> Self {
-        AppComponents {
-            open_dialog: RelmComponent::new(parent_model, parent_widgets, parent_sender.clone()),
-            save_dialog: RelmComponent::new(parent_model, parent_widgets, parent_sender.clone()),
-            error_dialog: RelmComponent::new(parent_model, parent_widgets, parent_sender),
-        }
-    }
 }
 
 // Модель данных приложения

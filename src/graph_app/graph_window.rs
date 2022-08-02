@@ -1,7 +1,7 @@
 use femtovg::{renderer::OpenGl, Canvas, Color, FontId};
 use glutin::{
     event::{ElementState, Event, MouseButton, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
+    event_loop::{ControlFlow, EventLoop, EventLoopBuilder},
     window::{Window, WindowBuilder},
     ContextBuilder, ContextWrapper, PossiblyCurrent,
 };
@@ -35,7 +35,7 @@ pub enum GraphWindowMsg {
 
 pub fn init_app() {
     // Цикл событий окна графа
-    let el: EventLoop<GraphWindowMsg> = EventLoop::with_user_event();
+    let el: EventLoop<GraphWindowMsg> = EventLoopBuilder::with_user_event().build();
     // Прокси для передачи событий из потока окна управления в поток окна графа
     let proxy = el.create_proxy();
 
@@ -59,7 +59,7 @@ pub fn init_app() {
     let windowed_context = unsafe { windowed_context.make_current().unwrap() };
 
     // Создание поля для рисования
-    let renderer = OpenGl::new(|s| windowed_context.get_proc_address(s) as *const _).unwrap();
+    let renderer = OpenGl::new_from_glutin_context(&windowed_context).unwrap();
     let mut canvas = Canvas::new(renderer).unwrap();
 
     // Добавление шрифта

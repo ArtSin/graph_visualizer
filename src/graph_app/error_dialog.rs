@@ -40,8 +40,8 @@ impl ComponentUpdate<AppModel> for ErrorDialogModel {
     ) {
         match msg {
             ErrorDialogMsg::Show(error) => {
-                self.hidden = false;
                 self.error = Some(error);
+                self.hidden = false;
             }
             ErrorDialogMsg::Accept => self.hidden = true,
         }
@@ -53,7 +53,7 @@ impl ComponentUpdate<AppModel> for ErrorDialogModel {
 impl Widgets<ErrorDialogModel, AppModel> for ErrorDialogWidgets {
     view! {
         gtk::MessageDialog {
-            set_transient_for: Some(&parent_widgets.main_window),
+            set_transient_for: parent!(Some(&parent_widgets.main_window)),
             set_modal: true,
             set_visible: watch!(!model.hidden),
             set_text: Some("Ошибка"),

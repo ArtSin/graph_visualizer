@@ -246,7 +246,7 @@ where
                 }
             }
         }
-        g.ok_or(Box::new(GraphInterfaceError::EmptyFile))
+        g.ok_or_else(|| Box::new(GraphInterfaceError::EmptyFile) as Box<dyn Error>)
     }
 
     // Сохранение графа в файл

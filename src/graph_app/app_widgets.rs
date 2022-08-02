@@ -231,10 +231,10 @@ impl Widgets<AppModel, ()> for AppWidgets {
         // Установка цвета для изображения графа
         let gtk_color = main_window.style_context().color();
         let color = femtovg::Color::rgbaf(
-            gtk_color.red,
-            gtk_color.green,
-            gtk_color.blue,
-            gtk_color.alpha,
+            gtk_color.red(),
+            gtk_color.green(),
+            gtk_color.blue(),
+            gtk_color.alpha(),
         );
         model
             .graph_window_proxy
@@ -243,7 +243,7 @@ impl Widgets<AppModel, ()> for AppWidgets {
     }
 
     // Обновление текста графа при каждой отрисовке приложения
-    fn manual_view() {
+    fn post_view() {
         // Обновление текста графа
         let buf = self.text_view.buffer();
         if buf.text(&buf.start_iter(), &buf.end_iter(), true).as_str() != model.graph_text {
