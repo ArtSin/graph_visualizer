@@ -1,4 +1,4 @@
-false true
+undirected weighted
 vertices
 1
 2

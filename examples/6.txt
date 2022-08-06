@@ -1,4 +1,4 @@
-true true
+directed weighted
 vertices
 1
 2

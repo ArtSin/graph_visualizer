@@ -15,12 +15,16 @@ where
     if args.len() != 2 {
         return Err(GraphInterfaceError::IncorrectArgumentCount);
     }
-    let is_directed: bool = args[0]
-        .parse()
-        .map_err(|_| GraphInterfaceError::IncorrectArgument { i: 1 })?;
-    let is_weighted: bool = args[1]
-        .parse()
-        .map_err(|_| GraphInterfaceError::IncorrectArgument { i: 2 })?;
+    let is_directed = match args[0] {
+        "directed" => Ok(true),
+        "undirected" => Ok(false),
+        _ => Err(GraphInterfaceError::IncorrectArgument { i: 1 }),
+    }?;
+    let is_weighted = match args[1] {
+        "weighted" => Ok(true),
+        "unweighted" => Ok(false),
+        _ => Err(GraphInterfaceError::IncorrectArgument { i: 2 }),
+    }?;
     *g = Some(Graph::new(is_directed, is_weighted));
     Ok(())
 }

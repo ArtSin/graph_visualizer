@@ -179,7 +179,17 @@ where
 
     // Сохранение графа в файл
     pub fn to_file<Writer: Write>(&self, writer: &mut Writer) -> Result<(), GraphError> {
-        writeln!(writer, "{} {}", self.is_directed, self.is_weighted)?;
+        let directed_str = if self.is_directed {
+            "directed"
+        } else {
+            "undirected"
+        };
+        let weighted_str = if self.is_weighted {
+            "weighted"
+        } else {
+            "unweighted"
+        };
+        writeln!(writer, "{} {}", directed_str, weighted_str)?;
         writeln!(writer, "vertices")?;
         for v in self.vertices.values() {
             match &v.label {
