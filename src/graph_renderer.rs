@@ -7,7 +7,8 @@ use femtovg::{renderer::OpenGl, Align, Baseline, Canvas, Color, FontId, Paint, P
 use rand::{distributions::Uniform, prelude::ThreadRng, Rng};
 
 use crate::{
-    graph::{Edge, EdgeWeight, Graph, GraphError, VertexKey},
+    graph::{Edge, EdgeWeight, Graph, VertexKey},
+    graph_errors::GraphOperationError,
     graph_flows::AlgorithmState,
 };
 
@@ -188,7 +189,7 @@ where
         dpi_factor: f32,
         g: &Option<Graph<I, W>>,
         g_algorithm_state: &AlgorithmState<I, W>,
-    ) -> Result<(), GraphError>
+    ) -> Result<(), GraphOperationError>
     where
         W: EdgeWeight,
     {
@@ -294,9 +295,15 @@ where
 
         // Отрисовка рёбер
         for i in g.get_vertices().keys() {
-            let (x_i, y_i) = *self.vertices.get(i).ok_or(GraphError::VertexNotFound)?;
+            let (x_i, y_i) = *self
+                .vertices
+                .get(i)
+                .ok_or(GraphOperationError::VertexNotFound)?;
             for Edge { to, weight } in g.get_edge_list(i).unwrap() {
-                let (x_to, y_to) = *self.vertices.get(to).ok_or(GraphError::VertexNotFound)?;
+                let (x_to, y_to) = *self
+                    .vertices
+                    .get(to)
+                    .ok_or(GraphOperationError::VertexNotFound)?;
 
                 // Поток в последнем дополняющем пути через текущее ребро
                 let mut edge_flow = None;
@@ -604,7 +611,7 @@ where
             let text = match &g
                 .get_vertices()
                 .get(i)
-                .ok_or(GraphError::VertexNotFound)?
+                .ok_or(GraphOperationError::VertexNotFound)?
                 .label
             {
                 Some(s) => format!("{} ({})", i, s),

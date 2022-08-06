@@ -10,8 +10,11 @@ use relm4_components::{
 
 use crate::{
     graph::Graph,
+    graph_errors::GraphError,
     graph_flows::{algorithm_step, AlgorithmState},
-    graph_parser::parse_command,
+    graph_parser::{
+        add_edge, add_vertex, graph_from_file, graph_to_file, new_graph, remove_edge, remove_vertex,
+    },
 };
 
 use self::{
@@ -120,9 +123,14 @@ impl Model for AppModel {
     type Components = AppComponents;
 }
 
-impl AppUpdate for AppModel {
+impl AppModel {
     // Обновление модели данных при получении сообщения
-    fn update(&mut self, msg: AppMsg, components: &AppComponents, sender: Sender<AppMsg>) -> bool {
+    fn update_with_result(
+        &mut self,
+        msg: AppMsg,
+        components: &AppComponents,
+        sender: &Sender<AppMsg>,
+    ) -> Result<(), GraphError> {
         match msg {
             // Обновление модели данными, полученными из интерфейса
             AppMsg::ToggleNewGraphIsDirected(x) => self.new_graph_is_directed = x,
@@ -141,25 +149,12 @@ impl AppUpdate for AppModel {
 
             // Открытие файла
             AppMsg::OpenFile(path) => {
-                if let Err(e) = parse_command(
-                    "lf",
-                    vec![path.to_str().unwrap()].as_slice(),
-                    &mut self.graph,
-                ) {
-                    sender.send(AppMsg::ShowError(e.to_string())).unwrap();
-                } else {
-                    sender.send(AppMsg::GraphChanged).unwrap();
-                }
+                graph_from_file(&vec![path.to_str().unwrap()][..], &mut self.graph)?;
+                sender.send(AppMsg::GraphChanged).unwrap();
             }
             // Сохранение файла
             AppMsg::SaveFile(path) => {
-                if let Err(e) = parse_command(
-                    "sf",
-                    vec![path.to_str().unwrap()].as_slice(),
-                    &mut self.graph,
-                ) {
-                    sender.send(AppMsg::ShowError(e.to_string())).unwrap();
-                }
+                graph_to_file(&vec![path.to_str().unwrap()][..], &self.graph)?;
             }
             // Обновление графа из текстового представления
             AppMsg::UpdateGraph => {
@@ -167,31 +162,19 @@ impl AppUpdate for AppModel {
                 let buf = buf_ref.as_ref().unwrap();
                 let text_gstr = buf.text(&buf.start_iter(), &buf.end_iter(), true);
                 let text_bytes = text_gstr.as_bytes();
-                match Graph::from_file(BufReader::new(text_bytes)) {
-                    Ok(g) => {
-                        self.graph = Some(g);
-                        sender.send(AppMsg::GraphChanged).unwrap();
-                    }
-                    Err(e) => {
-                        sender.send(AppMsg::ShowError(e.to_string())).unwrap();
-                    }
-                }
+                self.graph = Some(Graph::from_file(BufReader::new(text_bytes))?);
+                sender.send(AppMsg::GraphChanged).unwrap();
             }
             // Создание нового графа
             AppMsg::NewGraph => {
-                if let Err(e) = parse_command(
-                    "n",
-                    vec![
+                new_graph(
+                    &vec![
                         &self.new_graph_is_directed.to_string()[..],
                         &self.new_graph_is_weighted.to_string()[..],
-                    ]
-                    .as_slice(),
+                    ][..],
                     &mut self.graph,
-                ) {
-                    sender.send(AppMsg::ShowError(e.to_string())).unwrap();
-                } else {
-                    sender.send(AppMsg::GraphChanged).unwrap();
-                }
+                )?;
+                sender.send(AppMsg::GraphChanged).unwrap();
             }
             // Добавление вершины
             AppMsg::AddVertex => {
@@ -199,23 +182,13 @@ impl AppUpdate for AppModel {
                 if !self.label_text.is_empty() {
                     args.push(&self.label_text[..]);
                 }
-                if let Err(e) = parse_command("+v", args.as_slice(), &mut self.graph) {
-                    sender.send(AppMsg::ShowError(e.to_string())).unwrap();
-                } else {
-                    sender.send(AppMsg::GraphChanged).unwrap();
-                }
+                add_vertex(&args[..], &mut self.graph)?;
+                sender.send(AppMsg::GraphChanged).unwrap();
             }
             // Удаление вершины
             AppMsg::DeleteVertex => {
-                if let Err(e) = parse_command(
-                    "-v",
-                    vec![&self.vertex0_text[..]].as_slice(),
-                    &mut self.graph,
-                ) {
-                    sender.send(AppMsg::ShowError(e.to_string())).unwrap();
-                } else {
-                    sender.send(AppMsg::GraphChanged).unwrap();
-                }
+                remove_vertex(&vec![&self.vertex0_text[..]][..], &mut self.graph)?;
+                sender.send(AppMsg::GraphChanged).unwrap();
             }
             // Добавление ребра
             AppMsg::AddEdge => {
@@ -223,72 +196,56 @@ impl AppUpdate for AppModel {
                 if !self.weight_text.is_empty() {
                     args.push(&self.weight_text[..]);
                 }
-                if let Err(e) = parse_command("+e", args.as_slice(), &mut self.graph) {
-                    sender.send(AppMsg::ShowError(e.to_string())).unwrap();
-                } else {
-                    sender.send(AppMsg::GraphChanged).unwrap();
-                }
+                add_edge(&args[..], &mut self.graph)?;
+                sender.send(AppMsg::GraphChanged).unwrap();
             }
             // Удаление ребра
             AppMsg::DeleteEdge => {
-                if let Err(e) = parse_command(
-                    "-e",
-                    vec![&self.vertex1_text[..], &self.vertex2_text[..]].as_slice(),
+                remove_edge(
+                    &vec![&self.vertex1_text[..], &self.vertex2_text[..]][..],
                     &mut self.graph,
-                ) {
-                    sender.send(AppMsg::ShowError(e.to_string())).unwrap();
-                } else {
-                    sender.send(AppMsg::GraphChanged).unwrap();
-                }
+                )?;
+                sender.send(AppMsg::GraphChanged).unwrap();
             }
             // Выполнение шага алгоритма
             AppMsg::AlgorithmStep => {
                 let mut curr_state = AlgorithmState::NotStarted;
                 std::mem::swap(&mut curr_state, &mut self.graph_algorithm_state);
-                match algorithm_step(curr_state, &self.graph, &self.source_text, &self.sink_text) {
-                    Ok(new_state) => {
-                        self.graph_algorithm_started =
-                            !matches!(new_state, AlgorithmState::NotStarted);
-                        self.graph_algorithm_state = new_state;
-                        self.graph_window_proxy
-                            .send_event(GraphWindowMsg::GraphAlgorithmStateChanged(
-                                self.graph_algorithm_state.clone(),
-                            ))
-                            .unwrap();
-                    }
-                    Err(e) => sender.send(AppMsg::ShowError(e.to_string())).unwrap(),
-                }
+                let new_state =
+                    algorithm_step(curr_state, &self.graph, &self.source_text, &self.sink_text)?;
+                self.graph_algorithm_started = !matches!(new_state, AlgorithmState::NotStarted);
+                self.graph_algorithm_state = new_state;
+                self.graph_window_proxy
+                    .send_event(GraphWindowMsg::GraphAlgorithmStateChanged(
+                        self.graph_algorithm_state.clone(),
+                    ))
+                    .unwrap();
             }
             // Запуск алгоритма до конца
             AppMsg::AlgorithmFullRun => {
                 let mut curr_state = AlgorithmState::NotStarted;
                 std::mem::swap(&mut curr_state, &mut self.graph_algorithm_state);
                 loop {
-                    match algorithm_step(
+                    let new_state = algorithm_step(
                         curr_state,
                         &self.graph,
                         &self.source_text,
                         &self.sink_text,
-                    ) {
-                        Ok(new_state) => match new_state {
-                            AlgorithmState::Finished(_) | AlgorithmState::NotStarted => {
-                                self.graph_algorithm_started =
-                                    !matches!(new_state, AlgorithmState::NotStarted);
-                                self.graph_algorithm_state = new_state;
-                                self.graph_window_proxy
-                                    .send_event(GraphWindowMsg::GraphAlgorithmStateChanged(
-                                        self.graph_algorithm_state.clone(),
-                                    ))
-                                    .unwrap();
-                                break;
-                            }
-                            _ => {
-                                curr_state = new_state;
-                            }
-                        },
-                        Err(e) => {
-                            sender.send(AppMsg::ShowError(e.to_string())).unwrap();
+                    )?;
+                    match new_state {
+                        AlgorithmState::Finished(_) | AlgorithmState::NotStarted => {
+                            self.graph_algorithm_started =
+                                !matches!(new_state, AlgorithmState::NotStarted);
+                            self.graph_algorithm_state = new_state;
+                            self.graph_window_proxy
+                                .send_event(GraphWindowMsg::GraphAlgorithmStateChanged(
+                                    self.graph_algorithm_state.clone(),
+                                ))
+                                .unwrap();
                             break;
+                        }
+                        _ => {
+                            curr_state = new_state;
                         }
                     }
                 }
@@ -336,6 +293,16 @@ impl AppUpdate for AppModel {
                 .send_event(GraphWindowMsg::CloseWindow)
                 .unwrap(),
         }
+        Ok(())
+    }
+}
+
+impl AppUpdate for AppModel {
+    // Обновление модели данных при получении сообщения
+    fn update(&mut self, msg: AppMsg, components: &AppComponents, sender: Sender<AppMsg>) -> bool {
+        if let Err(e) = self.update_with_result(msg, components, &sender) {
+            sender.send(AppMsg::ShowError(e.to_string())).unwrap();
+        };
         true
     }
 }

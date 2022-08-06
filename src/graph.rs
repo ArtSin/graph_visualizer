@@ -1,46 +1,15 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
-    error::Error,
-    fmt::{Display, Formatter},
+    fmt::Display,
     io::{BufRead, Write},
     ops::{Add, Sub},
     str::FromStr,
 };
 
-use crate::graph_parser::{self, GraphInterfaceError};
-
-// Ошибки при работе с графом
-#[derive(Debug)]
-pub enum GraphError {
-    VertexExists,
-    VertexNotFound,
-    EdgeExists,
-    EdgeNotFound,
-    SomeVerticesNotFound,
-    WeightedEdgeInUnweightedGraph,
-    UnweightedEdgeInWeightedGraph,
-}
-
-impl Error for GraphError {}
-
-// Вывод ошибок
-impl Display for GraphError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                Self::VertexExists => "Вершина уже есть в графе!",
-                Self::VertexNotFound => "Такой вершины нет в графе!",
-                Self::EdgeExists => "Ребро уже есть в графе!",
-                Self::EdgeNotFound => "Такого ребра нет в графе!",
-                Self::SomeVerticesNotFound => "Одной из вершин нет в графе!",
-                Self::WeightedEdgeInUnweightedGraph => "Взвешенное ребро в невзвешенном графе!",
-                Self::UnweightedEdgeInWeightedGraph => "Невзвешенное ребро во взвешенном графе!",
-            }
-        )
-    }
-}
+use crate::{
+    graph_errors::{GraphError, GraphInterfaceError, GraphOperationError},
+    graph_parser,
+};
 
 pub trait Zero {
     const ZERO: Self;
@@ -77,29 +46,6 @@ where
     pub label: Option<String>, // Метка вершины
 }
 
-// Конструктор вершины
-impl<I> Vertex<I>
-where
-    I: VertexKey,
-{
-    pub fn new(id: I, label: Option<String>) -> Self {
-        Self { id, label }
-    }
-}
-
-// Вывод вершины
-impl<I> Display for Vertex<I>
-where
-    I: VertexKey,
-{
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match &self.label {
-            None => write!(f, "({})", self.id),
-            Some(s) => write!(f, "({}, {})", self.id, s),
-        }
-    }
-}
-
 // Ребро (дуга) графа
 #[derive(Clone, Debug)]
 pub struct Edge<I, W>
@@ -119,20 +65,6 @@ where
 {
     pub fn new(to: I, weight: Option<W>) -> Self {
         Self { to, weight }
-    }
-}
-
-// Вывод ребра
-impl<I, W> Display for Edge<I, W>
-where
-    I: VertexKey,
-    W: EdgeWeight,
-{
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match &self.weight {
-            None => write!(f, "{{to: {}}}", self.to),
-            Some(w) => write!(f, "{{to: {}, w: {}}}", self.to, w),
-        }
     }
 }
 
@@ -203,7 +135,7 @@ where
     }
 
     // Создание графа из файла
-    pub fn from_file<Reader: BufRead>(reader: Reader) -> Result<Self, Box<dyn Error>> {
+    pub fn from_file<Reader: BufRead>(reader: Reader) -> Result<Self, GraphError> {
         enum ReadingState {
             NotCreated,
             ParsingVerticesStart,
@@ -219,7 +151,7 @@ where
             match state {
                 // Создание графа
                 ReadingState::NotCreated => {
-                    graph_parser::parse_command("n", &line_split, &mut g)?;
+                    graph_parser::new_graph(&line_split, &mut g)?;
                     state = ReadingState::ParsingVerticesStart;
                 }
                 // Начало чтения вершин
@@ -236,19 +168,17 @@ where
                         state = ReadingState::ParsingEdges;
                         Ok(())
                     }
-                    _ => graph_parser::parse_command("+v", &line_split, &mut g),
+                    _ => graph_parser::add_vertex(&line_split, &mut g),
                 }?,
                 // Чтение рёбер
-                ReadingState::ParsingEdges => {
-                    graph_parser::parse_command("+e", &line_split, &mut g)?
-                }
+                ReadingState::ParsingEdges => graph_parser::add_edge(&line_split, &mut g)?,
             }
         }
-        g.ok_or_else(|| Box::new(GraphInterfaceError::EmptyFile) as Box<dyn Error>)
+        g.ok_or_else(|| GraphInterfaceError::EmptyFile.into())
     }
 
     // Сохранение графа в файл
-    pub fn to_file<Writer: Write>(&self, writer: &mut Writer) -> Result<(), Box<dyn Error>> {
+    pub fn to_file<Writer: Write>(&self, writer: &mut Writer) -> Result<(), GraphError> {
         writeln!(writer, "{} {}", self.is_directed, self.is_weighted)?;
         writeln!(writer, "vertices")?;
         for v in self.vertices.values() {
@@ -286,14 +216,16 @@ where
     }
 
     // Получение вершины
-    pub fn get_vertex(&self, i: &I) -> Result<&Vertex<I>, GraphError> {
-        self.vertices.get(i).ok_or(GraphError::VertexNotFound)
+    pub fn get_vertex(&self, i: &I) -> Result<&Vertex<I>, GraphOperationError> {
+        self.vertices
+            .get(i)
+            .ok_or(GraphOperationError::VertexNotFound)
     }
 
     // Добавление вершины
-    pub fn add_vertex(&mut self, v: Vertex<I>) -> Result<(), GraphError> {
+    pub fn add_vertex(&mut self, v: Vertex<I>) -> Result<(), GraphOperationError> {
         if self.vertices.contains_key(&v.id) {
-            Err(GraphError::VertexExists)
+            Err(GraphOperationError::VertexExists)
         } else {
             self.edges.insert(v.id.clone(), BTreeSet::new());
             self.vertices.insert(v.id.clone(), v);
@@ -302,9 +234,9 @@ where
     }
 
     // Удаление вершины
-    pub fn remove_vertex(&mut self, i: &I) -> Result<(), GraphError> {
+    pub fn remove_vertex(&mut self, i: &I) -> Result<(), GraphOperationError> {
         if !self.vertices.contains_key(i) {
-            return Err(GraphError::VertexNotFound);
+            return Err(GraphOperationError::VertexNotFound);
         }
         let rev_e = Edge::new(i.clone(), None);
         for to in self.vertices.keys() {
@@ -318,38 +250,40 @@ where
     }
 
     // Получение списка смежности вершины
-    pub fn get_edge_list(&self, from: &I) -> Result<&BTreeSet<Edge<I, W>>, GraphError> {
-        self.edges.get(from).ok_or(GraphError::VertexNotFound)
+    pub fn get_edge_list(&self, from: &I) -> Result<&BTreeSet<Edge<I, W>>, GraphOperationError> {
+        self.edges
+            .get(from)
+            .ok_or(GraphOperationError::VertexNotFound)
     }
 
     // Получение ребра
-    pub fn get_edge(&self, from: &I, to: &I) -> Result<&Edge<I, W>, GraphError> {
+    pub fn get_edge(&self, from: &I, to: &I) -> Result<&Edge<I, W>, GraphOperationError> {
         self.get_edge_list(from)?
             .get(&Edge::new(to.clone(), None))
-            .ok_or(GraphError::EdgeNotFound)
+            .ok_or(GraphOperationError::EdgeNotFound)
     }
 
     // Добавление ребра
-    pub fn add_edge(&mut self, from: I, e: Edge<I, W>) -> Result<(), GraphError> {
+    pub fn add_edge(&mut self, from: I, e: Edge<I, W>) -> Result<(), GraphOperationError> {
         if e.weight.is_some() && !self.is_weighted {
-            return Err(GraphError::WeightedEdgeInUnweightedGraph);
+            return Err(GraphOperationError::WeightedEdgeInUnweightedGraph);
         }
         if e.weight.is_none() && self.is_weighted {
-            return Err(GraphError::UnweightedEdgeInWeightedGraph);
+            return Err(GraphOperationError::UnweightedEdgeInWeightedGraph);
         }
         if !self.vertices.contains_key(&from) || !self.vertices.contains_key(&e.to) {
-            return Err(GraphError::SomeVerticesNotFound);
+            return Err(GraphOperationError::SomeVerticesNotFound);
         }
         if self.is_directed {
             if self.edges[&from].contains(&e) {
-                return Err(GraphError::EdgeExists);
+                return Err(GraphOperationError::EdgeExists);
             }
             self.edges.get_mut(&from).unwrap().insert(e);
             Ok(())
         } else {
             let rev_e = Edge::new(from.clone(), e.weight.clone());
             if self.edges[&from].contains(&e) || self.edges[&e.to].contains(&rev_e) {
-                return Err(GraphError::EdgeExists);
+                return Err(GraphOperationError::EdgeExists);
             }
             self.edges.get_mut(&e.to).unwrap().insert(rev_e);
             self.edges.get_mut(&from).unwrap().insert(e);
@@ -358,36 +292,18 @@ where
     }
 
     // Удаление ребра
-    pub fn remove_edge(&mut self, from: &I, to: &I) -> Result<(), GraphError> {
+    pub fn remove_edge(&mut self, from: &I, to: &I) -> Result<(), GraphOperationError> {
         if !self.vertices.contains_key(from) || !self.vertices.contains_key(to) {
-            return Err(GraphError::SomeVerticesNotFound);
+            return Err(GraphOperationError::SomeVerticesNotFound);
         }
         let e = Edge::new(to.clone(), None);
         if !self.edges[from].contains(&e) {
-            return Err(GraphError::EdgeNotFound);
+            return Err(GraphOperationError::EdgeNotFound);
         }
         self.edges.get_mut(from).unwrap().remove(&e);
         if !self.is_directed {
             let rev_e = Edge::new(from.clone(), None);
             self.edges.get_mut(to).unwrap().remove(&rev_e);
-        }
-        Ok(())
-    }
-}
-
-// Вывод графа
-impl<I, W> Display for Graph<I, W>
-where
-    I: VertexKey,
-    W: EdgeWeight,
-{
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        for (i, edge_set) in &self.edges {
-            write!(f, "{}:", self.vertices[i])?;
-            for e in edge_set {
-                write!(f, " {}", e)?;
-            }
-            writeln!(f)?;
         }
         Ok(())
     }

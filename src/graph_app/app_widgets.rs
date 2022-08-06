@@ -70,6 +70,7 @@ impl Widgets<AppModel, ()> for AppWidgets {
 
                     append = &gtk::Button::with_label("Обновить граф") {
                         set_hexpand: true,
+                        set_sensitive: watch!(!model.graph_algorithm_started),
                         connect_clicked(sender) => move |_| {
                             send!(sender, AppMsg::UpdateGraph);
                         },

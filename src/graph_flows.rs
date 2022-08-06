@@ -1,35 +1,14 @@
 use std::{
     cmp::min,
     collections::{BTreeMap, BTreeSet},
-    error::Error,
-    fmt::{Display, Formatter},
 };
 
 use crate::{
     graph::{Edge, EdgeWeight, Graph, VertexKey},
-    graph_parser::GraphInterfaceError,
+    graph_errors::{GraphAlgorithmError, GraphError, GraphInterfaceError},
 };
 
 pub struct GraphFlows {}
-
-// Ошибки при работе решения
-#[derive(Debug)]
-pub enum GraphAlgorithmError {
-    GraphNotDirected,
-    GraphNotWeighted,
-}
-
-impl Error for GraphAlgorithmError {}
-
-// Вывод ошибок
-impl Display for GraphAlgorithmError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::GraphNotDirected => write!(f, "Граф неориентированный!"),
-            Self::GraphNotWeighted => write!(f, "Граф невзвешенный!"),
-        }
-    }
-}
 
 // Состояние выполнения алгоритма
 #[derive(Debug, Clone)]
@@ -87,7 +66,7 @@ pub fn algorithm_step<I, W>(
     g: &Option<Graph<I, W>>,
     s_str: &str,
     t_str: &str,
-) -> Result<AlgorithmState<I, W>, Box<dyn Error>>
+) -> Result<AlgorithmState<I, W>, GraphError>
 where
     I: VertexKey,
     W: EdgeWeight,
@@ -96,16 +75,16 @@ where
         AlgorithmState::NotStarted => {
             // Графа нет
             if g.is_none() {
-                return Err(Box::new(GraphInterfaceError::GraphNotExist));
+                return Err(GraphInterfaceError::GraphNotExist.into());
             }
             let g = g.as_ref().unwrap();
 
             // Граф неориентированный или невзвешенный
             if !g.get_is_directed() {
-                return Err(Box::new(GraphAlgorithmError::GraphNotDirected));
+                return Err(GraphAlgorithmError::GraphNotDirected.into());
             }
             if !g.get_is_weighted() {
-                return Err(Box::new(GraphAlgorithmError::GraphNotWeighted));
+                return Err(GraphAlgorithmError::GraphNotWeighted.into());
             }
 
             let s: I = s_str
