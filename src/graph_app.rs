@@ -1,4 +1,9 @@
-use std::{cell::RefCell, io::BufReader, path::PathBuf};
+use std::{
+    cell::RefCell,
+    fs::File,
+    io::{BufReader, BufWriter},
+    path::PathBuf,
+};
 
 use glutin::event_loop::EventLoopProxy;
 use gtk::{traits::TextBufferExt, TextBuffer};
@@ -10,11 +15,9 @@ use relm4_components::{
 
 use crate::{
     graph::Graph,
-    graph_errors::GraphError,
+    graph_errors::{GraphError, GraphInterfaceError},
     graph_flows::{algorithm_step, AlgorithmState},
-    graph_parser::{
-        add_edge, add_vertex, graph_from_file, graph_to_file, new_graph, remove_edge, remove_vertex,
-    },
+    graph_parser::{add_edge, add_vertex, remove_edge, remove_vertex},
 };
 
 use self::{
@@ -149,12 +152,18 @@ impl AppModel {
 
             // Открытие файла
             AppMsg::OpenFile(path) => {
-                graph_from_file(&vec![path.to_str().unwrap()][..], &mut self.graph)?;
+                let file = File::open(path).map_err(|_| GraphInterfaceError::FileError)?;
+                self.graph = Some(Graph::from_file(BufReader::new(file))?);
                 sender.send(AppMsg::GraphChanged).unwrap();
             }
             // Сохранение файла
             AppMsg::SaveFile(path) => {
-                graph_to_file(&vec![path.to_str().unwrap()][..], &self.graph)?;
+                let g = self
+                    .graph
+                    .as_ref()
+                    .ok_or(GraphInterfaceError::GraphNotExist)?;
+                let file = File::create(path).map_err(|_| GraphInterfaceError::FileError)?;
+                g.to_file(&mut BufWriter::new(file))?;
             }
             // Обновление графа из текстового представления
             AppMsg::UpdateGraph => {
@@ -167,13 +176,10 @@ impl AppModel {
             }
             // Создание нового графа
             AppMsg::NewGraph => {
-                new_graph(
-                    &vec![
-                        &self.new_graph_is_directed.to_string()[..],
-                        &self.new_graph_is_weighted.to_string()[..],
-                    ][..],
-                    &mut self.graph,
-                )?;
+                self.graph = Some(Graph::new(
+                    self.new_graph_is_directed,
+                    self.new_graph_is_weighted,
+                ));
                 sender.send(AppMsg::GraphChanged).unwrap();
             }
             // Добавление вершины
@@ -187,7 +193,7 @@ impl AppModel {
             }
             // Удаление вершины
             AppMsg::DeleteVertex => {
-                remove_vertex(&vec![&self.vertex0_text[..]][..], &mut self.graph)?;
+                remove_vertex(&self.vertex0_text[..], &mut self.graph)?;
                 sender.send(AppMsg::GraphChanged).unwrap();
             }
             // Добавление ребра
@@ -202,7 +208,8 @@ impl AppModel {
             // Удаление ребра
             AppMsg::DeleteEdge => {
                 remove_edge(
-                    &vec![&self.vertex1_text[..], &self.vertex2_text[..]][..],
+                    &self.vertex1_text[..],
+                    &self.vertex2_text[..],
                     &mut self.graph,
                 )?;
                 sender.send(AppMsg::GraphChanged).unwrap();

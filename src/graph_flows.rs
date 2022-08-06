@@ -89,10 +89,10 @@ where
 
             let s: I = s_str
                 .parse()
-                .map_err(|_| GraphInterfaceError::IncorrectArgument { i: 0 })?;
+                .map_err(|_| GraphInterfaceError::IncorrectArgument { i: 1 })?;
             let t: I = t_str
                 .parse()
-                .map_err(|_| GraphInterfaceError::IncorrectArgument { i: 1 })?;
+                .map_err(|_| GraphInterfaceError::IncorrectArgument { i: 2 })?;
 
             // Все рёбра графа
             let edges: Vec<(&I, &I)> = g

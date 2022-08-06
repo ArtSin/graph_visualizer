@@ -8,7 +8,7 @@ use std::{
 
 use crate::{
     graph_errors::{GraphError, GraphInterfaceError, GraphOperationError},
-    graph_parser,
+    graph_parser::{add_edge, add_vertex, new_graph},
 };
 
 pub trait Zero {
@@ -151,7 +151,7 @@ where
             match state {
                 // Создание графа
                 ReadingState::NotCreated => {
-                    graph_parser::new_graph(&line_split, &mut g)?;
+                    new_graph(&line_split, &mut g)?;
                     state = ReadingState::ParsingVerticesStart;
                 }
                 // Начало чтения вершин
@@ -168,10 +168,10 @@ where
                         state = ReadingState::ParsingEdges;
                         Ok(())
                     }
-                    _ => graph_parser::add_vertex(&line_split, &mut g),
+                    _ => add_vertex(&line_split, &mut g),
                 }?,
                 // Чтение рёбер
-                ReadingState::ParsingEdges => graph_parser::add_edge(&line_split, &mut g)?,
+                ReadingState::ParsingEdges => add_edge(&line_split, &mut g)?,
             }
         }
         g.ok_or_else(|| GraphInterfaceError::EmptyFile.into())
