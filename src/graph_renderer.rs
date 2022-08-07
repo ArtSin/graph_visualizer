@@ -19,6 +19,9 @@ where
 {
     front_color: Color,                // основной цвет
     back_color: Color,                 // фоновый цвет
+    center_gravity: f32,               // гравитация к центру
+    repulsive_force: f32,              // сила отталкивания вершин
+    time_step: f32,                    // cкорость изменений
     updates_stopped: bool,             // прекращены ли обновления изображения графа
     vertices: BTreeMap<I, (f32, f32)>, // координаты вершин
     rng: ThreadRng,                    // генератор случайных чисел
@@ -45,6 +48,9 @@ where
         Self {
             front_color: Color::rgbf(1.0, 1.0, 1.0),
             back_color: Color::rgbf(0.0, 0.0, 0.0),
+            center_gravity: 1.1,
+            repulsive_force: 0.1,
+            time_step: 0.01,
             updates_stopped: false,
             vertices: BTreeMap::new(),
             rng: rand::thread_rng(),
@@ -66,9 +72,33 @@ where
         }
     }
 
+    // Установка гравитации к центру
+    pub fn set_center_gravity(&mut self, center_gravity: f32) {
+        self.center_gravity = center_gravity;
+    }
+
+    // Установка силы отталкивания вершин
+    pub fn set_repulsive_force(&mut self, repulsive_force: f32) {
+        self.repulsive_force = repulsive_force;
+    }
+
+    // Установка cкорости изменений
+    pub fn set_time_step(&mut self, time_step: f32) {
+        self.time_step = time_step;
+    }
+
     // Включение или отключение обновлений изображения графа
     pub fn set_updates_stopped(&mut self, stopped: bool) {
         self.updates_stopped = stopped;
+    }
+
+    // Сброс изображения (назначение случайных координат вершин)
+    pub fn reset_image(&mut self) {
+        let coord_distribution = Uniform::new(-0.5f32, 0.5);
+        for (x, y) in self.vertices.values_mut() {
+            *x = self.rng.sample(coord_distribution);
+            *y = self.rng.sample(coord_distribution);
+        }
     }
 
     // Начало/конец нажатия мышью
@@ -88,11 +118,6 @@ where
     where
         W: EdgeWeight,
     {
-        // Константы для гравитации, сил отталкивания, скорости
-        const GRAVITY_CONST: f32 = 1.1;
-        const FORCE_CONST: f32 = 0.1;
-        const TIME_CONST: f32 = 0.01;
-
         if g.is_none() {
             self.vertices.clear();
             return;
@@ -133,7 +158,12 @@ where
         let mut forces: BTreeMap<_, _> = self
             .vertices
             .iter()
-            .map(|(i, (x, y))| (i.clone(), (-x * GRAVITY_CONST, -y * GRAVITY_CONST)))
+            .map(|(i, (x, y))| {
+                (
+                    i.clone(),
+                    (-x * self.center_gravity, -y * self.center_gravity),
+                )
+            })
             .collect();
 
         // Силы отталкивания между вершинами
@@ -144,7 +174,10 @@ where
                 }
                 let dir = (x_j - x_i, y_j - y_i);
                 let len = dir.0 * dir.0 + dir.1 * dir.1;
-                let force = (dir.0 * FORCE_CONST / len, dir.1 * FORCE_CONST / len);
+                let force = (
+                    dir.0 * self.repulsive_force / len,
+                    dir.1 * self.repulsive_force / len,
+                );
 
                 let force_i = forces.get_mut(i).unwrap();
                 *force_i = (force_i.0 - force.0, force_i.1 - force.1);
@@ -175,7 +208,7 @@ where
                 }
             }
             let pos = self.vertices.get_mut(&i).unwrap();
-            *pos = (pos.0 + f_x * TIME_CONST, pos.1 + f_y * TIME_CONST);
+            *pos = (pos.0 + f_x * self.time_step, pos.1 + f_y * self.time_step);
         }
     }
 

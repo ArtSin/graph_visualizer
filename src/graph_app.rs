@@ -100,6 +100,9 @@ pub enum AppMsg {
     ChangeWeightText(String),       // изменение текста поля веса ребра
     ChangeSourceText(String),       // изменение текста поля истока
     ChangeSinkText(String),         // изменение текста поля стока
+    ChangeCenterGravityValue(f32),  // изменение значения гравитации к центру
+    ChangeRepulsiveForceValue(f32), // изменение значения силы отталкивания вершин
+    ChangeTimeStepValue(f32),       // изменение значения скорости изменений
     ToggleGraphUpdateStop(bool),    // переключение флага прекращения обновлений графа
 
     OpenFile(PathBuf), // открытие файла с путём, выбранном в диалоге
@@ -110,6 +113,7 @@ pub enum AppMsg {
     DeleteVertex,      // удаление вершины
     AddEdge,           // добавление ребра
     DeleteEdge,        // удаление ребра
+    ResetImage,        // сброс изображения графа
     AlgorithmStep,     // шаг алгоритма
     AlgorithmFullRun,  // запуск алгоритма до конца
 
@@ -145,6 +149,18 @@ impl AppModel {
             AppMsg::ChangeWeightText(x) => self.weight_text = x,
             AppMsg::ChangeSourceText(x) => self.source_text = x,
             AppMsg::ChangeSinkText(x) => self.sink_text = x,
+            AppMsg::ChangeCenterGravityValue(x) => self
+                .graph_window_proxy
+                .send_event(GraphWindowMsg::ChangeCenterGravityValue(x))
+                .unwrap(),
+            AppMsg::ChangeRepulsiveForceValue(x) => self
+                .graph_window_proxy
+                .send_event(GraphWindowMsg::ChangeRepulsiveForceValue(x))
+                .unwrap(),
+            AppMsg::ChangeTimeStepValue(x) => self
+                .graph_window_proxy
+                .send_event(GraphWindowMsg::ChangeTimeStepValue(x))
+                .unwrap(),
             AppMsg::ToggleGraphUpdateStop(x) => self
                 .graph_window_proxy
                 .send_event(GraphWindowMsg::ToggleGraphUpdateStop(x))
@@ -213,6 +229,12 @@ impl AppModel {
                     &mut self.graph,
                 )?;
                 sender.send(AppMsg::GraphChanged).unwrap();
+            }
+            // Сброс изображения графа
+            AppMsg::ResetImage => {
+                self.graph_window_proxy
+                    .send_event(GraphWindowMsg::ResetImage)
+                    .unwrap();
             }
             // Выполнение шага алгоритма
             AppMsg::AlgorithmStep => {

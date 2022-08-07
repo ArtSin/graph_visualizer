@@ -29,8 +29,12 @@ pub enum GraphWindowMsg {
     SetColor(Color),                                      // установка цвета
     GraphChanged(Option<Graph<i32, i32>>),                // обновление графа
     GraphAlgorithmStateChanged(AlgorithmState<i32, i32>), // обновление состояния выполнения алгоритма
-    ToggleGraphUpdateStop(bool), // переключение флага прекращения обновлений графа
-    CloseWindow,                 // закрытие окна
+    ChangeCenterGravityValue(f32),                        // изменение значения гравитации к центру
+    ChangeRepulsiveForceValue(f32), // изменение значения силы отталкивания вершин
+    ChangeTimeStepValue(f32),       // изменение значения скорости изменений
+    ToggleGraphUpdateStop(bool),    // переключение флага прекращения обновлений графа
+    ResetImage,                     // сброс изображения графа
+    CloseWindow,                    // закрытие окна
 }
 
 pub fn init_app() {
@@ -151,8 +155,20 @@ fn handle_events(
             GraphWindowMsg::GraphChanged(x) => model.graph = x,
             // Обновление состояния выполнения алгоритма
             GraphWindowMsg::GraphAlgorithmStateChanged(x) => model.graph_algorithm_state = x,
+            // Изменение значения гравитации к центру
+            GraphWindowMsg::ChangeCenterGravityValue(x) => {
+                model.graph_renderer.set_center_gravity(x)
+            }
+            // Изменение значения силы отталкивания вершин
+            GraphWindowMsg::ChangeRepulsiveForceValue(x) => {
+                model.graph_renderer.set_repulsive_force(x)
+            }
+            // Изменение значения скорости изменений
+            GraphWindowMsg::ChangeTimeStepValue(x) => model.graph_renderer.set_time_step(x),
             // Переключение флага прекращения обновлений графа
             GraphWindowMsg::ToggleGraphUpdateStop(x) => model.graph_renderer.set_updates_stopped(x),
+            // Cброс изображения графа
+            GraphWindowMsg::ResetImage => model.graph_renderer.reset_image(),
             // Закрытие окна
             GraphWindowMsg::CloseWindow => *control_flow = ControlFlow::Exit,
         },
