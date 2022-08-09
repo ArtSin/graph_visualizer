@@ -219,6 +219,14 @@ impl Widgets<AppModel, ()> for AppWidgets {
                             }
                         },
 
+                        append = &gtk::Label::new(Some("Погрешность симуляции:")) {},
+
+                        append = &gtk::SpinButton::new(Some(&gtk::Adjustment::new(0.0, 0.0, 10.0, 0.01, 0.1, 0.0)), 0.01, 4) {
+                            connect_value_changed(sender) => move |spinbutton| {
+                                send!(sender, AppMsg::ChangeThetaValue(spinbutton.value() as f32))
+                            }
+                        },
+
                         append = &gtk::CheckButton::with_label("Зафиксировать изображение") {
                             connect_toggled(sender) => move |checkbox| {
                                 send!(sender, AppMsg::ToggleGraphUpdateStop(checkbox.is_active()));

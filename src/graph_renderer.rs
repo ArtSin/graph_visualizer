@@ -10,6 +10,7 @@ use crate::{
     graph::{Edge, EdgeWeight, Graph, VertexKey},
     graph_errors::GraphOperationError,
     graph_flows::AlgorithmState,
+    quad_tree,
 };
 
 // Структура для отрисовки графа
@@ -22,6 +23,7 @@ where
     center_gravity: f32,               // гравитация к центру
     repulsive_force: f32,              // сила отталкивания вершин
     time_step: f32,                    // cкорость изменений
+    theta: f32,                        //  погрешность симуляции
     updates_stopped: bool,             // прекращены ли обновления изображения графа
     vertices: BTreeMap<I, (f32, f32)>, // координаты вершин
     rng: ThreadRng,                    // генератор случайных чисел
@@ -51,6 +53,7 @@ where
             center_gravity: 1.1,
             repulsive_force: 0.1,
             time_step: 0.01,
+            theta: 0.0,
             updates_stopped: false,
             vertices: BTreeMap::new(),
             rng: rand::thread_rng(),
@@ -85,6 +88,11 @@ where
     // Установка cкорости изменений
     pub fn set_time_step(&mut self, time_step: f32) {
         self.time_step = time_step;
+    }
+
+    // Установка погрешности симуляции
+    pub fn set_theta(&mut self, theta: f32) {
+        self.theta = theta;
     }
 
     // Включение или отключение обновлений изображения графа
@@ -166,24 +174,34 @@ where
             })
             .collect();
 
-        // Силы отталкивания между вершинами
-        for (i, (x_i, y_i)) in &self.vertices {
-            for (j, (x_j, y_j)) in &self.vertices {
-                if j <= i {
-                    continue;
-                }
-                let dir = (x_j - x_i, y_j - y_i);
-                let len = dir.0 * dir.0 + dir.1 * dir.1;
-                let force = (
-                    dir.0 * self.repulsive_force / len,
-                    dir.1 * self.repulsive_force / len,
-                );
+        // Минимальные и максимальные координаты вершин
+        let (min_x, max_x, min_y, max_y) = self.vertices.iter().map(|(_, coords)| *coords).fold(
+            (f32::MAX, f32::MIN, f32::MAX, f32::MIN),
+            |(acc_min_x, acc_max_x, acc_min_y, acc_max_y), (x, y)| {
+                (
+                    f32::min(acc_min_x, x),
+                    f32::max(acc_max_x, x),
+                    f32::min(acc_min_y, y),
+                    f32::max(acc_max_y, y),
+                )
+            },
+        );
 
-                let force_i = forces.get_mut(i).unwrap();
-                *force_i = (force_i.0 - force.0, force_i.1 - force.1);
-                let force_j = forces.get_mut(j).unwrap();
-                *force_j = (force_j.0 + force.0, force_j.1 + force.1);
-            }
+        // Построение дерева квадрантов для всех вершин
+        let mut tree = quad_tree::Node::Empty;
+        for (_, v) in &self.vertices {
+            tree = tree.insert(*v, min_x, max_x, min_y, max_y);
+        }
+        tree.finish_inserts();
+
+        // Силы отталкивания между вершинами
+        for (i, v) in &self.vertices {
+            let force = tree.get_force(*v, self.theta, min_x, max_x, min_y, max_y);
+            let force_i = forces.get_mut(i).unwrap();
+            *force_i = (
+                force_i.0 + self.repulsive_force * force.0,
+                force_i.1 + self.repulsive_force * force.1,
+            );
         }
 
         // Притяжение/отталкивание вершин, связанных рёбрами
@@ -231,7 +249,7 @@ where
         const VERTEX_CNT: i32 = 10;
         const MIN_VERTEX_DIAMETER: f32 = 16.0;
         const MIN_GRAPH_SCALE: f32 = 1.0;
-        const MAX_GRAPH_SCALE: f32 = 10.0;
+        const MAX_GRAPH_SCALE: f32 = f32::INFINITY;
         const MOVE_TO_BORDER_SPEED: f32 = 0.005;
 
         // Цвет выделения

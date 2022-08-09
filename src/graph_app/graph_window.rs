@@ -35,6 +35,7 @@ pub enum GraphWindowMsg {
     ChangeCenterGravityValue(f32), // изменение значения гравитации к центру
     ChangeRepulsiveForceValue(f32), // изменение значения силы отталкивания вершин
     ChangeTimeStepValue(f32),      // изменение значения скорости изменений
+    ChangeThetaValue(f32),         // изменение значения погрешности симуляции
     ToggleGraphUpdateStop(bool),   // переключение флага прекращения обновлений графа
     ResetImage,                    // сброс изображения графа
     CloseWindow,                   // закрытие окна
@@ -168,6 +169,8 @@ fn handle_events(
             }
             // Изменение значения скорости изменений
             GraphWindowMsg::ChangeTimeStepValue(x) => model.graph_renderer.set_time_step(x),
+            // Изменение значения погрешности симуляции
+            GraphWindowMsg::ChangeThetaValue(x) => model.graph_renderer.set_theta(x),
             // Переключение флага прекращения обновлений графа
             GraphWindowMsg::ToggleGraphUpdateStop(x) => model.graph_renderer.set_updates_stopped(x),
             // Cброс изображения графа

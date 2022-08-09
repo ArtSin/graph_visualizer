@@ -6,6 +6,7 @@ pub mod graph_errors;
 pub mod graph_flows;
 pub mod graph_parser;
 pub mod graph_renderer;
+pub mod quad_tree;
 
 fn main() {
     std::env::set_var("GTK_USE_PORTAL", "1");

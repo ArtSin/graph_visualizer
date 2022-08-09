@@ -106,6 +106,7 @@ pub enum AppMsg {
     ChangeCenterGravityValue(f32),  // изменение значения гравитации к центру
     ChangeRepulsiveForceValue(f32), // изменение значения силы отталкивания вершин
     ChangeTimeStepValue(f32),       // изменение значения скорости изменений
+    ChangeThetaValue(f32),          // изменение значения погрешности симуляции
     ToggleGraphUpdateStop(bool),    // переключение флага прекращения обновлений графа
 
     OpenFile(PathBuf), // открытие файла с путём, выбранном в диалоге
@@ -164,6 +165,10 @@ impl AppModel {
             AppMsg::ChangeTimeStepValue(x) => self
                 .graph_window_proxy
                 .send_event(GraphWindowMsg::ChangeTimeStepValue(x))
+                .unwrap(),
+            AppMsg::ChangeThetaValue(x) => self
+                .graph_window_proxy
+                .send_event(GraphWindowMsg::ChangeThetaValue(x))
                 .unwrap(),
             AppMsg::ToggleGraphUpdateStop(x) => self
                 .graph_window_proxy
