@@ -107,6 +107,7 @@ pub enum AppMsg {
     ChangeRepulsiveForceValue(f32), // изменение значения силы отталкивания вершин
     ChangeTimeStepValue(f32),       // изменение значения скорости изменений
     ChangeThetaValue(f32),          // изменение значения погрешности симуляции
+    ToggleFullRender(bool),         // переключение флага полной отрисовки
     ToggleGraphUpdateStop(bool),    // переключение флага прекращения обновлений графа
 
     OpenFile(PathBuf), // открытие файла с путём, выбранном в диалоге
@@ -169,6 +170,10 @@ impl AppModel {
             AppMsg::ChangeThetaValue(x) => self
                 .graph_window_proxy
                 .send_event(GraphWindowMsg::ChangeThetaValue(x))
+                .unwrap(),
+            AppMsg::ToggleFullRender(x) => self
+                .graph_window_proxy
+                .send_event(GraphWindowMsg::ToggleFullRender(x))
                 .unwrap(),
             AppMsg::ToggleGraphUpdateStop(x) => self
                 .graph_window_proxy

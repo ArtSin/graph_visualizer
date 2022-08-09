@@ -23,7 +23,8 @@ where
     center_gravity: f32,               // гравитация к центру
     repulsive_force: f32,              // сила отталкивания вершин
     time_step: f32,                    // cкорость изменений
-    theta: f32,                        //  погрешность симуляции
+    theta: f32,                        // погрешность симуляции
+    full_render: bool,                 // полная отрисовка
     updates_stopped: bool,             // прекращены ли обновления изображения графа
     vertices: BTreeMap<I, (f32, f32)>, // координаты вершин
     rng: ThreadRng,                    // генератор случайных чисел
@@ -54,6 +55,7 @@ where
             repulsive_force: 0.1,
             time_step: 0.01,
             theta: 0.0,
+            full_render: true,
             updates_stopped: false,
             vertices: BTreeMap::new(),
             rng: rand::thread_rng(),
@@ -93,6 +95,11 @@ where
     // Установка погрешности симуляции
     pub fn set_theta(&mut self, theta: f32) {
         self.theta = theta;
+    }
+
+    // Включение или выключение полной отрисовки
+    pub fn set_full_render(&mut self, full_render: bool) {
+        self.full_render = full_render;
     }
 
     // Включение или отключение обновлений изображения графа
@@ -339,7 +346,11 @@ where
 
         // Толщина линий, шрифт
         let mut paint = Paint::color(self.front_color);
-        paint.set_line_width(2.0 / min_sz);
+        if self.full_render {
+            paint.set_line_width(2.0 / min_sz);
+        } else {
+            paint.set_line_width(5.0 / min_sz);
+        }
         paint.set_font(&[font]);
         paint.set_text_align(Align::Center);
         paint.set_text_baseline(Baseline::Middle);
@@ -401,6 +412,10 @@ where
                     path.line_to(x_to, y_to);
                 }
                 canvas.stroke_path(&mut path, paint);
+
+                if !self.full_render {
+                    continue;
+                }
 
                 // Стрелка дуги
                 if g.get_is_directed() {
@@ -650,13 +665,22 @@ where
 
         // Отрисовка вершин
         for (i, (x, y)) in &self.vertices {
-            // Заполнение круга фоновым цветом, затем контур основным цветом
-            let mut path = Path::new();
-            path.circle(*x, *y, vertex_radius);
-            paint.set_color(self.back_color);
-            canvas.fill_path(&mut path, paint);
-            paint.set_color(self.front_color);
-            canvas.stroke_path(&mut path, paint);
+            if self.full_render {
+                // Заполнение круга фоновым цветом, затем контур основным цветом
+                let mut path = Path::new();
+                path.circle(*x, *y, vertex_radius);
+                paint.set_color(self.back_color);
+                canvas.fill_path(&mut path, paint);
+                paint.set_color(self.front_color);
+                canvas.stroke_path(&mut path, paint);
+            } else {
+                // Заполнение круга основным цветом
+                let mut path = Path::new();
+                path.circle(*x, *y, vertex_radius);
+                paint.set_color(self.front_color);
+                canvas.fill_path(&mut path, paint);
+                continue;
+            }
 
             // Текст идентификатора и метки вершины
             let text = match &g

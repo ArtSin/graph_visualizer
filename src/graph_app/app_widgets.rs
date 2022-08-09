@@ -227,6 +227,13 @@ impl Widgets<AppModel, ()> for AppWidgets {
                             }
                         },
 
+                        append = &gtk::CheckButton::with_label("Отрисовывать детали и текст") {
+                            set_active: true,
+                            connect_toggled(sender) => move |checkbox| {
+                                send!(sender, AppMsg::ToggleFullRender(checkbox.is_active()));
+                            }
+                        },
+
                         append = &gtk::CheckButton::with_label("Зафиксировать изображение") {
                             connect_toggled(sender) => move |checkbox| {
                                 send!(sender, AppMsg::ToggleGraphUpdateStop(checkbox.is_active()));
