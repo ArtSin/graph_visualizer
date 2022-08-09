@@ -1,4 +1,4 @@
-directed unweighted
+directed unweighted int
 vertices
 1
 2

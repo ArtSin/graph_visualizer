@@ -14,7 +14,7 @@ use relm4_components::{
 };
 
 use crate::{
-    graph::Graph,
+    graph::{EdgeWeights, Graph},
     graph_errors::{GraphError, GraphInterfaceError},
     graph_flows::{algorithm_step, AlgorithmState},
     graph_parser::{add_edge, add_vertex, remove_edge, remove_vertex},
@@ -47,20 +47,21 @@ pub struct AppComponents {
 
 // Модель данных приложения
 pub struct AppModel {
-    new_graph_is_directed: bool, // будет ли новый граф ориентированным
-    new_graph_is_weighted: bool, // будет ли новый граф взвешенным
-    vertex0_text: String,        // текст поля №0 вершины (для создания/удаления вершины)
-    vertex1_text: String,        // текст поля №1
-    vertex2_text: String,        // и текст поля №2 вершин (для создания/удаления рёбер)
-    label_text: String,          // текст поля метки вершины (для создания/удаления вершины)
-    weight_text: String,         // текст поля веса ребра (для создания/удаления рёбер)
-    source_text: String,         // текст поля истока
-    sink_text: String,           // текст поля стока
+    new_graph_is_directed: bool,      // будет ли новый граф ориентированным
+    new_graph_is_weighted: bool,      // будет ли новый граф взвешенным
+    new_graph_is_float_weights: bool, // будут ли у нового графа дробные веса
+    vertex0_text: String,             // текст поля №0 вершины (для создания/удаления вершины)
+    vertex1_text: String,             // текст поля №1
+    vertex2_text: String,             // и текст поля №2 вершин (для создания/удаления рёбер)
+    label_text: String,               // текст поля метки вершины (для создания/удаления вершины)
+    weight_text: String,              // текст поля веса ребра (для создания/удаления рёбер)
+    source_text: String,              // текст поля истока
+    sink_text: String,                // текст поля стока
 
-    graph: Option<Graph<i32, i32>>,                  // граф
-    graph_text: RefCell<Option<TextBuffer>>,         // граф в текстовом виде
-    graph_algorithm_state: AlgorithmState<i32, i32>, // состояние выполнения алгоритма
-    graph_algorithm_started: bool,                   // запущен ли алгоритм
+    graph: Option<Graph<i32, EdgeWeights>>,  // граф
+    graph_text: RefCell<Option<TextBuffer>>, // граф в текстовом виде
+    graph_algorithm_state: AlgorithmState<i32, EdgeWeights>, // состояние выполнения алгоритма
+    graph_algorithm_started: bool,           // запущен ли алгоритм
 
     graph_window_proxy: EventLoopProxy<GraphWindowMsg>, // Прокси для передачи событий в поток окна графа
 }
@@ -71,6 +72,7 @@ impl AppModel {
         Self {
             new_graph_is_directed: false,
             new_graph_is_weighted: false,
+            new_graph_is_float_weights: false,
             vertex0_text: String::new(),
             vertex1_text: String::new(),
             vertex2_text: String::new(),
@@ -93,6 +95,7 @@ impl AppModel {
 pub enum AppMsg {
     ToggleNewGraphIsDirected(bool), // переключение флага ориентированности нового графа
     ToggleNewGraphIsWeighted(bool), // переключение флага взвешенности нового графа
+    ToggleNewGraphIsFloatWeights(bool), // переключение флага типа весов нового графа
     ChangeVertex0Text(String),      // изменение текста поля №0 вершины
     ChangeVertex1Text(String),      // изменение текста поля №1 вершины
     ChangeVertex2Text(String),      // изменение текста поля №2 вершины
@@ -142,6 +145,7 @@ impl AppModel {
             // Обновление модели данными, полученными из интерфейса
             AppMsg::ToggleNewGraphIsDirected(x) => self.new_graph_is_directed = x,
             AppMsg::ToggleNewGraphIsWeighted(x) => self.new_graph_is_weighted = x,
+            AppMsg::ToggleNewGraphIsFloatWeights(x) => self.new_graph_is_float_weights = x,
             AppMsg::ChangeVertex0Text(x) => self.vertex0_text = x,
             AppMsg::ChangeVertex1Text(x) => self.vertex1_text = x,
             AppMsg::ChangeVertex2Text(x) => self.vertex2_text = x,
@@ -195,6 +199,7 @@ impl AppModel {
                 self.graph = Some(Graph::new(
                     self.new_graph_is_directed,
                     self.new_graph_is_weighted,
+                    self.new_graph_is_float_weights,
                 ));
                 sender.send(AppMsg::GraphChanged).unwrap();
             }

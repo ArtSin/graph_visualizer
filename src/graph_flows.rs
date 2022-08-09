@@ -4,7 +4,7 @@ use std::{
 };
 
 use crate::{
-    graph::{Edge, EdgeWeight, Graph, VertexKey},
+    graph::{Edge, EdgeWeight, EdgeWeights, Graph, VertexKey},
     graph_errors::{GraphAlgorithmError, GraphError, GraphInterfaceError},
 };
 
@@ -61,15 +61,14 @@ where
 }
 
 // Алгоритм Форда-Фалкерсона
-pub fn algorithm_step<I, W>(
-    state: AlgorithmState<I, W>,
-    g: &Option<Graph<I, W>>,
+pub fn algorithm_step<I>(
+    state: AlgorithmState<I, EdgeWeights>,
+    g: &Option<Graph<I, EdgeWeights>>,
     s_str: &str,
     t_str: &str,
-) -> Result<AlgorithmState<I, W>, GraphError>
+) -> Result<AlgorithmState<I, EdgeWeights>, GraphError>
 where
     I: VertexKey,
-    W: EdgeWeight,
 {
     match state {
         AlgorithmState::NotStarted => {
@@ -78,6 +77,11 @@ where
                 return Err(GraphInterfaceError::GraphNotExist.into());
             }
             let g = g.as_ref().unwrap();
+            let zero: EdgeWeights = if g.get_is_float_weights() {
+                0.0.into()
+            } else {
+                0.into()
+            };
 
             // Граф неориентированный или невзвешенный
             if !g.get_is_directed() {
@@ -104,20 +108,20 @@ where
             // Граф пропускных способностей
             let mut gc = g.clone();
             for &(i, to) in &edges {
-                let _ = gc.add_edge(to.clone(), Edge::new(i.clone(), Some(W::ZERO)));
+                let _ = gc.add_edge(to.clone(), Edge::new(i.clone(), Some(zero.clone())));
             }
 
             // Граф потоков
-            let mut gf = Graph::new(true, true);
+            let mut gf = Graph::new(true, true, g.get_is_float_weights());
             for v in g.get_vertices().values() {
                 gf.add_vertex(v.clone()).unwrap();
             }
             for &(i, to) in &edges {
-                gf.add_edge(i.clone(), Edge::new(to.clone(), Some(W::ZERO)))
+                gf.add_edge(i.clone(), Edge::new(to.clone(), Some(zero.clone())))
                     .unwrap();
             }
             for &(i, to) in &edges {
-                let _ = gf.add_edge(to.clone(), Edge::new(i.clone(), Some(W::ZERO)));
+                let _ = gf.add_edge(to.clone(), Edge::new(i.clone(), Some(zero.clone())));
             }
 
             // Данные состояния
@@ -127,13 +131,19 @@ where
                 gc,
                 gf,
                 curr_path: None,
-                last_flow: W::ZERO,
-                total_flow: W::ZERO,
+                last_flow: zero.clone(),
+                total_flow: zero,
             };
             // Алгоритм запущен
             Ok(AlgorithmState::Step(data))
         }
         AlgorithmState::Step(mut data) => {
+            let (zero, inf): (EdgeWeights, EdgeWeights) = if data.gc.get_is_float_weights() {
+                (0.0.into(), f32::INFINITY.into())
+            } else {
+                (0.into(), i32::MAX.into())
+            };
+
             // Шаг алгоритма
             let mut used = BTreeSet::new();
             data.curr_path = Some(BTreeMap::new());
@@ -145,12 +155,12 @@ where
                 &data.s,
                 &data.t,
                 &data.s,
-                W::INF,
+                inf,
             );
             data.total_flow = data.total_flow + f.clone();
             data.last_flow = f.clone();
 
-            if f == W::ZERO {
+            if f == zero {
                 // Дополняющих путей нет, завершение алгоритма
                 data.curr_path = None;
                 Ok(AlgorithmState::Finished(data))
@@ -167,27 +177,31 @@ where
 }
 
 // Нахождение дополняющего пути поиском в глубину
-fn dfs<I, W>(
-    gc: &Graph<I, W>,
-    gf: &mut Graph<I, W>,
+fn dfs<I>(
+    gc: &Graph<I, EdgeWeights>,
+    gf: &mut Graph<I, EdgeWeights>,
     used: &mut BTreeSet<I>,
-    curr_path: &mut BTreeMap<(I, I), W>,
+    curr_path: &mut BTreeMap<(I, I), EdgeWeights>,
     s: &I,
     t: &I,
     i: &I,
-    flow: W,
-) -> W
+    flow: EdgeWeights,
+) -> EdgeWeights
 where
     I: VertexKey,
-    W: EdgeWeight,
 {
     // Достигнут сток
     if i == t {
         return flow;
     }
+    let zero: EdgeWeights = if gc.get_is_float_weights() {
+        0.0.into()
+    } else {
+        0.into()
+    };
     // Потока нет или текущая вершина уже посещена
-    if flow == W::ZERO || used.contains(i) {
-        return W::ZERO;
+    if flow == zero || used.contains(i) {
+        return zero;
     }
     // Текущая вершина посещена
     used.insert(i.clone());
@@ -201,7 +215,7 @@ where
 
         // Поток в дополняющем пути
         let next_f = dfs(gc, gf, used, curr_path, s, t, to, min(flow.clone(), r));
-        if next_f != W::ZERO {
+        if next_f != zero {
             // Добавление потока на прямой дуге
             curr_path.insert((i.clone(), to.clone()), next_f.clone());
             gf.remove_edge(i, to).unwrap();
@@ -209,7 +223,7 @@ where
                 .unwrap();
 
             // Вычитание потока на обратной дуге
-            curr_path.insert((to.clone(), i.clone()), W::ZERO - next_f.clone());
+            curr_path.insert((to.clone(), i.clone()), zero - next_f.clone());
             let rev_f = gf.get_edge(to, i).unwrap().weight.as_ref().unwrap().clone();
             gf.remove_edge(to, i).unwrap();
             gf.add_edge(
@@ -220,5 +234,5 @@ where
             return next_f;
         }
     }
-    W::ZERO
+    zero
 }

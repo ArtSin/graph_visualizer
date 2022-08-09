@@ -1,5 +1,5 @@
 use crate::{
-    graph::{Edge, EdgeWeight, Graph, Vertex, VertexKey},
+    graph::{Edge, EdgeWeight, EdgeWeights, Graph, Vertex, VertexKey},
     graph_errors::{GraphError, GraphInterfaceError},
 };
 
@@ -12,7 +12,7 @@ where
     I: VertexKey,
     W: EdgeWeight,
 {
-    if args.len() != 2 {
+    if args.len() != 3 {
         return Err(GraphInterfaceError::IncorrectArgumentCount);
     }
     let is_directed = match args[0] {
@@ -25,7 +25,12 @@ where
         "unweighted" => Ok(false),
         _ => Err(GraphInterfaceError::IncorrectArgument { i: 2 }),
     }?;
-    *g = Some(Graph::new(is_directed, is_weighted));
+    let is_float_weights = match args[2] {
+        "float" => Ok(true),
+        "int" => Ok(false),
+        _ => Err(GraphInterfaceError::IncorrectArgument { i: 3 }),
+    }?;
+    *g = Some(Graph::new(is_directed, is_weighted, is_float_weights));
     Ok(())
 }
 
@@ -64,14 +69,14 @@ where
 }
 
 // Добавление ребра в граф
-pub fn add_edge<I, W>(args: &[&str], g: &mut Option<Graph<I, W>>) -> Result<(), GraphError>
+pub fn add_edge<I>(args: &[&str], g: &mut Option<Graph<I, EdgeWeights>>) -> Result<(), GraphError>
 where
     I: VertexKey,
-    W: EdgeWeight,
 {
     if args.len() < 2 || args.len() > 3 {
         return Err(GraphInterfaceError::IncorrectArgumentCount.into());
     }
+    let g = g.as_mut().ok_or(GraphInterfaceError::GraphNotExist)?;
     let i: I = args[0]
         .parse()
         .map_err(|_| GraphInterfaceError::IncorrectArgument { i: 1 })?;
@@ -81,13 +86,18 @@ where
     let weight = args
         .get(2)
         .map(|&s| {
-            s.parse::<W>()
-                .map_err(|_| GraphInterfaceError::IncorrectArgument { i: 3 })
+            if g.get_is_float_weights() {
+                s.parse::<f32>()
+                    .map_err(|_| GraphInterfaceError::IncorrectArgument { i: 3 })
+                    .map(|x| x.into())
+            } else {
+                s.parse::<i32>()
+                    .map_err(|_| GraphInterfaceError::IncorrectArgument { i: 3 })
+                    .map(|x| x.into())
+            }
         })
         .transpose()?;
-    g.as_mut()
-        .ok_or(GraphInterfaceError::GraphNotExist)?
-        .add_edge(i, Edge::new(j, weight))?;
+    g.add_edge(i, Edge::new(j, weight))?;
     Ok(())
 }
 

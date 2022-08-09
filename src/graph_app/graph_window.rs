@@ -9,7 +9,10 @@ use relm4::RelmApp;
 use resource::resource;
 
 use crate::{
-    graph::Graph, graph_app::AppModel, graph_flows::AlgorithmState, graph_renderer::GraphRenderer,
+    graph::{EdgeWeights, Graph},
+    graph_app::AppModel,
+    graph_flows::AlgorithmState,
+    graph_renderer::GraphRenderer,
 };
 
 // Модель данных окна графа
@@ -18,23 +21,23 @@ struct GraphWindowModel {
     canvas: Canvas<OpenGl>,                                    // поле для рисования
     font: FontId,                                              // шрифт
 
-    graph: Option<Graph<i32, i32>>,                  // граф
-    graph_renderer: GraphRenderer<i32>,              // структура для отрисовки графа
-    graph_algorithm_state: AlgorithmState<i32, i32>, // состояние выполнения алгоритма
+    graph: Option<Graph<i32, EdgeWeights>>, // граф
+    graph_renderer: GraphRenderer<i32>,     // структура для отрисовки графа
+    graph_algorithm_state: AlgorithmState<i32, EdgeWeights>, // состояние выполнения алгоритма
 }
 
 // Сообщения к модели данных окна графа
 #[derive(Debug)]
 pub enum GraphWindowMsg {
-    SetColor(Color),                                      // установка цвета
-    GraphChanged(Option<Graph<i32, i32>>),                // обновление графа
-    GraphAlgorithmStateChanged(AlgorithmState<i32, i32>), // обновление состояния выполнения алгоритма
-    ChangeCenterGravityValue(f32),                        // изменение значения гравитации к центру
+    SetColor(Color),                                              // установка цвета
+    GraphChanged(Option<Graph<i32, EdgeWeights>>),                // обновление графа
+    GraphAlgorithmStateChanged(AlgorithmState<i32, EdgeWeights>), // обновление состояния выполнения алгоритма
+    ChangeCenterGravityValue(f32), // изменение значения гравитации к центру
     ChangeRepulsiveForceValue(f32), // изменение значения силы отталкивания вершин
-    ChangeTimeStepValue(f32),       // изменение значения скорости изменений
-    ToggleGraphUpdateStop(bool),    // переключение флага прекращения обновлений графа
-    ResetImage,                     // сброс изображения графа
-    CloseWindow,                    // закрытие окна
+    ChangeTimeStepValue(f32),      // изменение значения скорости изменений
+    ToggleGraphUpdateStop(bool),   // переключение флага прекращения обновлений графа
+    ResetImage,                    // сброс изображения графа
+    CloseWindow,                   // закрытие окна
 }
 
 pub fn init_app() {

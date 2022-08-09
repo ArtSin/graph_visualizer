@@ -6,35 +6,97 @@ use std::{
     str::FromStr,
 };
 
+use ordered_float::OrderedFloat;
+
 use crate::{
     graph_errors::{GraphError, GraphInterfaceError, GraphOperationError},
     graph_parser::{add_edge, add_vertex, new_graph},
 };
-
-pub trait Zero {
-    const ZERO: Self;
-}
-pub trait Infinity {
-    const INF: Self;
-}
-
 // Идентификатор вершины
 pub trait VertexKey: Ord + Display + FromStr + Clone {}
 // Вес ребра
-pub trait EdgeWeight:
-    Zero + Infinity + Add<Output = Self> + Sub<Output = Self> + Ord + Display + FromStr + Clone
-{
-}
-
-impl Zero for i32 {
-    const ZERO: Self = 0;
-}
-impl Infinity for i32 {
-    const INF: Self = i32::MAX;
-}
+pub trait EdgeWeight: Add<Output = Self> + Sub<Output = Self> + Ord + Display + Clone {}
 
 impl VertexKey for i32 {}
 impl EdgeWeight for i32 {}
+impl EdgeWeight for OrderedFloat<f32> {}
+
+#[derive(Debug, Clone)]
+pub enum EdgeWeights {
+    I32(i32),
+    F32(OrderedFloat<f32>),
+}
+
+impl Add for EdgeWeights {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            (Self::I32(x), Self::I32(y)) => Self::I32(x + y),
+            (Self::F32(x), Self::F32(y)) => Self::F32(x + y),
+            _ => unreachable!(),
+        }
+    }
+}
+impl Sub for EdgeWeights {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            (Self::I32(x), Self::I32(y)) => Self::I32(x - y),
+            (Self::F32(x), Self::F32(y)) => Self::F32(x - y),
+            _ => unreachable!(),
+        }
+    }
+}
+impl PartialEq for EdgeWeights {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::I32(x), Self::I32(y)) => x == y,
+            (Self::F32(x), Self::F32(y)) => x == y,
+            _ => unreachable!(),
+        }
+    }
+}
+impl Eq for EdgeWeights {}
+impl PartialOrd for EdgeWeights {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        match (self, other) {
+            (Self::I32(x), Self::I32(y)) => x.partial_cmp(y),
+            (Self::F32(x), Self::F32(y)) => x.partial_cmp(y),
+            _ => unreachable!(),
+        }
+    }
+}
+impl Ord for EdgeWeights {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        match (self, other) {
+            (Self::I32(x), Self::I32(y)) => x.cmp(y),
+            (Self::F32(x), Self::F32(y)) => x.cmp(y),
+            _ => unreachable!(),
+        }
+    }
+}
+impl Display for EdgeWeights {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            EdgeWeights::I32(x) => x.fmt(f),
+            EdgeWeights::F32(x) => x.fmt(f),
+        }
+    }
+}
+impl EdgeWeight for EdgeWeights {}
+
+impl From<i32> for EdgeWeights {
+    fn from(x: i32) -> Self {
+        Self::I32(x)
+    }
+}
+impl From<f32> for EdgeWeights {
+    fn from(x: f32) -> Self {
+        Self::F32(OrderedFloat(x))
+    }
+}
 
 // Вершина графа
 #[derive(Clone, Debug)]
@@ -117,23 +179,13 @@ where
     edges: BTreeMap<I, BTreeSet<Edge<I, W>>>, // Рёбра
     is_directed: bool,                        // Ориентированный ли граф
     is_weighted: bool,                        // Взвешенный ли граф
+    is_float_weights: bool,                   // Являются ли веса дробными числами
 }
 
-impl<I, W> Graph<I, W>
+impl<I> Graph<I, EdgeWeights>
 where
     I: VertexKey,
-    W: EdgeWeight,
 {
-    // Создание пустого графа
-    pub fn new(is_directed: bool, is_weighted: bool) -> Self {
-        Self {
-            vertices: BTreeMap::new(),
-            edges: BTreeMap::new(),
-            is_directed,
-            is_weighted,
-        }
-    }
-
     // Создание графа из файла
     pub fn from_file<Reader: BufRead>(reader: Reader) -> Result<Self, GraphError> {
         enum ReadingState {
@@ -176,6 +228,23 @@ where
         }
         g.ok_or_else(|| GraphInterfaceError::EmptyFile.into())
     }
+}
+
+impl<I, W> Graph<I, W>
+where
+    I: VertexKey,
+    W: EdgeWeight,
+{
+    // Создание пустого графа
+    pub fn new(is_directed: bool, is_weighted: bool, is_float_weights: bool) -> Self {
+        Self {
+            vertices: BTreeMap::new(),
+            edges: BTreeMap::new(),
+            is_directed,
+            is_weighted,
+            is_float_weights,
+        }
+    }
 
     // Сохранение графа в файл
     pub fn to_file<Writer: Write>(&self, writer: &mut Writer) -> Result<(), GraphError> {
@@ -189,7 +258,16 @@ where
         } else {
             "unweighted"
         };
-        writeln!(writer, "{} {}", directed_str, weighted_str)?;
+        let float_weights_str = if self.is_float_weights {
+            "float"
+        } else {
+            "int"
+        };
+        writeln!(
+            writer,
+            "{} {} {}",
+            directed_str, weighted_str, float_weights_str
+        )?;
         writeln!(writer, "vertices")?;
         for v in self.vertices.values() {
             match &v.label {
@@ -218,6 +296,10 @@ where
 
     pub fn get_is_weighted(&self) -> bool {
         self.is_weighted
+    }
+
+    pub fn get_is_float_weights(&self) -> bool {
+        self.is_float_weights
     }
 
     // Получение вершин

@@ -107,6 +107,12 @@ impl Widgets<AppModel, ()> for AppWidgets {
                             },
                         },
 
+                        append = &gtk::CheckButton::with_label("Дробные веса") {
+                            connect_toggled(sender) => move |checkbox| {
+                                send!(sender, AppMsg::ToggleNewGraphIsFloatWeights(checkbox.is_active()));
+                            }
+                        },
+
                         append = &gtk::Button::with_label("Новый граф") {
                             set_sensitive: watch!(!model.graph_algorithm_started),
                             connect_clicked(sender) => move |_| {
