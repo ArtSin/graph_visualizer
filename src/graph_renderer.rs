@@ -237,7 +237,7 @@ where
 
         // Построение дерева квадрантов для всех вершин
         let mut tree = quad_tree::Node::Empty;
-        for (_, v) in &self.vertices {
+        for v in self.vertices.values() {
             tree = tree.insert(*v, min_x, max_x, min_y, max_y);
         }
         tree.finish_inserts();

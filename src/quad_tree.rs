@@ -56,12 +56,10 @@ impl Node {
                     } else {
                         data.l_d = Box::new(data.l_d.insert(vertex, min_x, mid_x, mid_y, max_y));
                     }
+                } else if vertex.1 <= mid_y {
+                    data.r_u = Box::new(data.r_u.insert(vertex, mid_x, max_x, min_y, mid_y));
                 } else {
-                    if vertex.1 <= mid_y {
-                        data.r_u = Box::new(data.r_u.insert(vertex, mid_x, max_x, min_y, mid_y));
-                    } else {
-                        data.r_d = Box::new(data.r_d.insert(vertex, mid_x, max_x, mid_y, max_y));
-                    }
+                    data.r_d = Box::new(data.r_d.insert(vertex, mid_x, max_x, mid_y, max_y));
                 }
                 Self::Many(data)
             }
