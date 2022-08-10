@@ -162,11 +162,15 @@ where
         const MIN_GRAPH_SCALE: f32 = 1.0;
         const MAX_GRAPH_SCALE: f32 = 16.0;
 
+        let zoom_prev = self.zoom;
         self.zoom = f32::clamp(
             self.zoom * SQRT_2.powf(scroll),
             MIN_GRAPH_SCALE,
             MAX_GRAPH_SCALE,
         );
+        let coeff = self.zoom / zoom_prev;
+        self.center_shift.0 *= coeff;
+        self.center_shift.1 *= coeff;
     }
 
     // Обновление координат вершин
