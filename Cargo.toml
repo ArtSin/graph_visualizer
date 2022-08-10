@@ -1,9 +1,15 @@
 [package]
 name = "graph_visualizer"
-version = "1.2.0"
+version = "2.0.0"
+authors = ["ArtSin <artsin666@gmail.com>"]
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+description = "Tool for interactive editing and visualization of graphs"
+readme = "README.md"
+homepage = "https://github.com/ArtSin/graph_visualizer"
+repository = "https://github.com/ArtSin/graph_visualizer"
+license = "GPL-3.0-or-later"
+keywords = ["visualization", "graph", "graphics"]
+categories = ["visualization"]
 
 [dependencies]
 gtk = { version = "0.4.8", package = "gtk4" }
