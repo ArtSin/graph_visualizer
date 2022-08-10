@@ -1,6 +1,7 @@
 use femtovg::{renderer::OpenGl, Canvas, Color, FontId};
 use glutin::{
-    event::{ElementState, Event, MouseButton, WindowEvent},
+    dpi::PhysicalPosition,
+    event::{ElementState, Event, MouseButton, MouseScrollDelta, TouchPhase, WindowEvent},
     event_loop::{ControlFlow, EventLoop, EventLoopBuilder},
     window::{Window, WindowBuilder},
     ContextBuilder, ContextWrapper, PossiblyCurrent,
@@ -122,6 +123,17 @@ fn handle_events(
             } => match state {
                 ElementState::Pressed => model.graph_renderer.set_mouse_dragging(true),
                 ElementState::Released => model.graph_renderer.set_mouse_dragging(false),
+            },
+            // Прокрутка колесом мыши
+            WindowEvent::MouseWheel {
+                delta,
+                phase: TouchPhase::Moved,
+                ..
+            } => match delta {
+                MouseScrollDelta::LineDelta(_, y) => model.graph_renderer.update_zoom(*y),
+                MouseScrollDelta::PixelDelta(PhysicalPosition { y, .. }) => {
+                    model.graph_renderer.update_zoom(*y as f32)
+                }
             },
             // Запрос закрытия окна
             WindowEvent::CloseRequested => {}

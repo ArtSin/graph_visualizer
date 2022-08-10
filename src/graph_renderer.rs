@@ -1,6 +1,7 @@
 use std::{
     collections::BTreeMap,
     f32::consts::{FRAC_1_SQRT_2, SQRT_2},
+    mem::swap,
 };
 
 use femtovg::{renderer::OpenGl, Align, Baseline, Canvas, Color, FontId, Paint, Path};
@@ -18,19 +19,22 @@ pub struct GraphRenderer<I>
 where
     I: VertexKey,
 {
-    front_color: Color,                // основной цвет
-    back_color: Color,                 // фоновый цвет
-    center_gravity: f32,               // гравитация к центру
-    repulsive_force: f32,              // сила отталкивания вершин
-    time_step: f32,                    // cкорость изменений
-    theta: f32,                        // погрешность симуляции
-    full_render: bool,                 // полная отрисовка
-    updates_stopped: bool,             // прекращены ли обновления изображения графа
-    vertices: BTreeMap<I, (f32, f32)>, // координаты вершин
-    rng: ThreadRng,                    // генератор случайных чисел
-    mouse_press: Option<(f32, f32)>,   // текущие координаты нажатия мыши
-    mouse_dragging: bool,              // нажата ли мышь
-    dragging_vertex: Option<I>,        // текущая перемещаемая вершина
+    front_color: Color,                   // основной цвет
+    back_color: Color,                    // фоновый цвет
+    center_gravity: f32,                  // гравитация к центру
+    repulsive_force: f32,                 // сила отталкивания вершин
+    time_step: f32,                       // cкорость изменений
+    theta: f32,                           // погрешность симуляции
+    full_render: bool,                    // полная отрисовка
+    updates_stopped: bool,                // прекращены ли обновления изображения графа
+    vertices: BTreeMap<I, (f32, f32)>,    // координаты вершин
+    rng: ThreadRng,                       // генератор случайных чисел
+    mouse_press: Option<(f32, f32)>,      // текущие координаты нажатия мыши
+    mouse_press_prev: Option<(f32, f32)>, // предыдущие координаты нажатия мыши
+    mouse_dragging: bool,                 // нажата ли мышь
+    dragging_vertex: Option<I>,           // текущая перемещаемая вершина
+    zoom: f32,                            // коэффициент масштабирования
+    center_shift: (f32, f32),             // сдвиг отображаемой части изображения от центра
 }
 
 impl<I> Default for GraphRenderer<I>
@@ -60,8 +64,11 @@ where
             vertices: BTreeMap::new(),
             rng: rand::thread_rng(),
             mouse_press: None,
+            mouse_press_prev: None,
             mouse_dragging: false,
             dragging_vertex: None,
+            zoom: 1.0,
+            center_shift: (0.0, 0.0),
         }
     }
 
@@ -107,25 +114,59 @@ where
         self.updates_stopped = stopped;
     }
 
-    // Сброс изображения (назначение случайных координат вершин)
+    // Сброс изображения
     pub fn reset_image(&mut self) {
+        // Назначение случайных координат вершин
         let coord_distribution = Uniform::new(-0.5f32, 0.5);
         for (x, y) in self.vertices.values_mut() {
             *x = self.rng.sample(coord_distribution);
             *y = self.rng.sample(coord_distribution);
         }
+        // Сброс камеры
+        self.zoom = 1.0;
+        self.center_shift = (0.0, 0.0);
     }
 
     // Начало/конец нажатия мышью
     pub fn set_mouse_dragging(&mut self, dragging: bool) {
         self.mouse_dragging = dragging;
         self.mouse_press = None;
+        self.mouse_press_prev = None;
         self.dragging_vertex = None;
     }
 
     // Перемещение мыши
     pub fn set_mouse_move(&mut self, coords: (f32, f32)) {
+        swap(&mut self.mouse_press, &mut self.mouse_press_prev);
         self.mouse_press = Some(coords);
+        if !self.mouse_dragging {
+            self.mouse_press_prev = None;
+        } else {
+            // Если мышь уже перемещается и вершина не выбрана
+            if self.dragging_vertex.is_none() && self.mouse_press_prev.is_some() {
+                // Текущие координаты мыши
+                let (x_curr, y_curr) = *self.mouse_press.as_ref().unwrap();
+                // Предыдущие координаты мыши
+                let (x_prev, y_prev) = *self.mouse_press_prev.as_ref().unwrap();
+                // Смещение камеры на разность координат
+                let (x_diff, y_diff) = (x_curr - x_prev, y_curr - y_prev);
+                self.center_shift.0 += x_diff;
+                self.center_shift.1 += y_diff;
+            }
+        }
+    }
+
+    // Масштабирование прокруткой колеса мыши
+    pub fn update_zoom(&mut self, scroll: f32) {
+        // Минимальный и максимальный масштаб
+        const MIN_GRAPH_SCALE: f32 = 1.0;
+        const MAX_GRAPH_SCALE: f32 = 16.0;
+
+        self.zoom = f32::clamp(
+            self.zoom * SQRT_2.powf(scroll),
+            MIN_GRAPH_SCALE,
+            MAX_GRAPH_SCALE,
+        );
     }
 
     // Обновление координат вершин
@@ -252,11 +293,9 @@ where
         W: EdgeWeight,
     {
         // Константы для количества вершин на единицу длины, минимального размера вершин,
-        // минимального и максимального масштаба графа, скорости расширения поля
+        // скорости расширения поля
         const VERTEX_CNT: i32 = 10;
         const MIN_VERTEX_DIAMETER: f32 = 16.0;
-        const MIN_GRAPH_SCALE: f32 = 1.0;
-        const MAX_GRAPH_SCALE: f32 = f32::INFINITY;
         const MOVE_TO_BORDER_SPEED: f32 = 0.005;
 
         // Цвет выделения
@@ -299,14 +338,12 @@ where
         // Центр графа
         let (center_x, center_y) = ((min_x + max_x) / 2.0, (min_y + max_y) / 2.0);
         // Коэффициент масштаба для графа
-        let max_diff = f32::max(
-            MIN_GRAPH_SCALE,
-            f32::min(MAX_GRAPH_SCALE, f32::max(diff_x, diff_y)),
-        );
+        let max_diff = f32::max(1.0, f32::max(diff_x, diff_y));
         // Коэффициент масштаба для поля отрисовки
-        let scale_coeff = (min_sz - min_sz * vertex_diameter) / max_diff;
+        let scale_coeff = self.zoom * (min_sz - min_sz * vertex_diameter) / max_diff;
 
         // Перенос системы координат в центр, масштабирование
+        canvas.translate(self.center_shift.0, self.center_shift.1);
         canvas.translate(width / 2.0, height / 2.0);
         canvas.scale(scale_coeff, scale_coeff);
         canvas.translate(-center_x, -center_y);
@@ -329,7 +366,8 @@ where
                 );
 
                 // Если ещё не выбрана вершина, то попытаться найти её
-                if self.dragging_vertex.is_none() {
+                // Если мышь уже перемещается, то происходит сдвиг камеры, а не вершины
+                if self.mouse_press_prev.is_none() && self.dragging_vertex.is_none() {
                     for (i, (v_x, v_y)) in &self.vertices {
                         if (x - v_x).powi(2) + (y - v_y).powi(2) <= vertex_radius.powi(2) {
                             self.dragging_vertex = Some(i.clone());
